@@ -10,6 +10,7 @@
 | --- | --- | --- | --- |
 | **01** | **Codex Ultra 能量滑轨拆解（253 行零依赖）** | 双击可玩的完整单文件 HTML 源码 + 白话原理速查手册 + 8 条微交互避坑检查清单 | [01-codex-ultra-slider/](./01-codex-ultra-slider/) |
 | **02** | **微动效 Agent Orb** | WebGL 点阵地球、六种状态切换源码和原理说明 | [02-agent-orb/](./02-agent-orb/) |
+| **03** | **导出光带（460 行零依赖）** | 双击可玩的单文件导出加载 + 白话原理速查手册 + 8 条加载态检查清单 | [03-webgl-loading/](./03-webgl-loading/) |
 
 ```bash
 git clone https://github.com/yogupro/yogu-open.git

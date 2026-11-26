@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HSN · Motion states</title>
+<style>
+*{box-sizing:border-box}
+body,main{grid-template-columns:minmax(0,1fr)}
+body{margin:0;min-height:100svh;display:grid;place-items:center;background:#fcfcfc;color:#383838;font:400 24px/32px Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{display:grid;justify-items:center;width:100%;padding:16px;transform:translate(-2px,-9px)}
+canvas{width:min(310px,70vw);aspect-ratio:1;display:block}
+output{min-height:32px;margin:10px 0 32px;text-align:center;font-size:23px}
+nav{position:relative;isolation:isolate;overflow:clip;width:min(756px,100%);display:grid;grid-template-columns:124fr 132fr 124fr 156fr 120fr 88fr;padding:5px;border:1.5px solid #dedede;border-radius:32px;background:#f3f3f3}
+nav::before{position:absolute;z-index:-1;content:"";top:var(--pill-y);left:0;width:var(--pill-width);height:var(--pill-height);transform:translateX(var(--pill-x));background:#fcfcfc;border-radius:inherit;box-shadow:0 1.5px 3px #00000010;transition:transform 125ms cubic-bezier(.25,.3,.22,1),width 125ms ease-out}
+button{min-width:0;height:49px;font:500 clamp(13px,2.3vw,24px)/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#535b5e;background:transparent;border:0;border-radius:25px;padding:2px 0 0;cursor:pointer}
+button[aria-pressed=true]{color:#181818}
+@media(prefers-reduced-motion:reduce){nav::before{transition:none}}
+@media(max-width:560px){
+  main{padding:8px;transform:translateY(-6px)}
+  output{font-size:19px;margin:6px 0 22px}
+  nav{padding:3px}button{height:38px}
+}
+@media(max-width:359px){
+  nav{grid-template-columns:repeat(3,minmax(0,1fr));border-radius:24px}
+  button{height:44px}
+}
+button:focus-visible{outline:2px solid #b85749}
+</style>
+<main>
+<canvas aria-label="Animated status orb" role="img"></canvas>
+<output aria-live="polite"></output>
+<nav aria-label="Orb state"></nav>
+</main>
+<script id="palette" type="text/plain">
+vec3 shellColor(vec2 p,float err){
+  // Smooth colour fields fitted to the unobstructed shell in the reference.
+  vec3 normalTint=vec3(238.,242.,236.)+p.x*vec3(-12.,-3.,6.)+p.y*vec3(-10.,9.,19.)
+      +p.x*p.y*vec3(-16.,-8.,-15.)+p.x*p.x*vec3(4.,-3.,0.)+p.y*p.y*vec3(3.,-5.,-3.);
+  vec3 errorTint=vec3(251.,236.,231.)+p.x*vec3(-2.,-5.,-4.)+p.y*vec3(2.,6.,6.)
+      +p.x*p.y*vec3(2.,8.,8.)-p.x*p.x*vec3(3.,8.,4.)-p.y*p.y*vec3(4.,10.,6.);
+  return mix(normalTint,errorTint,err)/255.;
+}
+vec3 dotInk(vec2 p,float err){
+  // Diagonal 1D colour field fitted to active dots in the reference:
+  // warm amber bottom-left -> coral-vermilion center -> cool slate-teal top-right.
+  float d=p.x+p.y;
+  vec3 c=mix(vec3(204.,122.,50.),vec3(192.,80.,60.),smoothstep(-.84,-.16,d));
+  c=mix(c,vec3(184.,44.,46.),smoothstep(-.16,.18,d));
+  c=mix(c,vec3(134.,86.,104.),smoothstep(.20,.56,d));
+  c=mix(c,vec3(80.,124.,136.),smoothstep(.54,.96,d));
+  vec3 errInk=vec3(168.,22.,34.);
+  return mix(c,errInk,err)/255.;
+}
+</script>
+<script id="fragment" type="text/plain">
+precision highp float;
+/* palette */
+uniform vec2 size;
+uniform float standby,waiting,err,motion;
+uniform float eyeAge,ringAge,shift;
+const float PI=3.14159265;
+float disk(float d,float aa){return 1.-smoothstep(-aa,aa,d);}
+void main(){
+  vec2 p=(gl_FragCoord.xy-.5*size)/(.42*size.y);
+  p.x-=shift;
+  float r=length(p), aa=2.4/size.y;
+  vec3 bg=vec3(252./255.);
+  float pulse=.5-.5*cos(ringAge*(2.*PI/2.4));
+  float ringRadius=mix(134.5,142.5,pulse)/130.;
+  float ring=disk(abs(r-ringRadius)-1.13/130.,aa);
+  vec3 color=mix(bg,vec3(191.,148.,154.)/255.,ring*waiting*(1.-.61*pulse));
+  vec3 shell=shellColor(p,err);
+  shell-=vec3(.075)*smoothstep(.983,.995,r);
+  // The gaze holds between two short saccades, then relaxes back to center.
+  float cycle=mod(eyeAge,7.85);
+  float glanceA=smoothstep(2.59,2.75,cycle)-smoothstep(3.82,3.99,cycle);
+  float glanceB=smoothstep(5.32,5.49,cycle)-smoothstep(7.11,7.28,cycle);
+  vec2 gaze=(vec2(20.,-12.)*glanceA+vec2(18.,-2.)*glanceB)/130.;
+  float blink=1.-smoothstep(.006,.105,abs(cycle-4.30));
+  vec2 eye=p-gaze*motion;
+  eye.y/=1.-.91*blink*motion;
+  float intro=mix(1.,clamp(eyeAge/.72,0.,1.),motion);
+  float leaveScale=mix(.38,1.,smoothstep(0.,.55,standby));
+  float radius=mix(19.5,50.3,intro)*leaveScale/130.;
+  // The iris is tinted by the stationary diagonal lighting on the shell.
+  float light=p.x+p.y;
+  vec3 iris=mix(vec3(212.,98.,46.),vec3(199.,43.,40.),clamp((light+.51)/.71,0.,1.));
+  iris=mix(iris,vec3(145.,78.,82.),clamp((light-.2)/.42,0.,1.))/255.;
+  float glintFade=smoothstep(.14,.38,eyeAge);
+  float glint=disk(length(eye-radius*vec2(-.35,.35))-.194*radius,aa)*mix(1.,glintFade,motion);
+  iris=mix(iris,vec3(238.,242.,232.)/255.,glint);
+  float eyeAlpha=standby*mix(1.,smoothstep(.02,.34,eyeAge),motion);
+  shell=mix(shell,iris,eyeAlpha*disk(length(eye)-radius,aa));
+  gl_FragColor=vec4(mix(color,shell,disk(r-1.,aa)),1.);
+}
+</script>
+<script id="point-vertex" type="text/plain">
+attribute vec3 aPos;
+attribute vec4 aMeta;
+/* palette */
+uniform vec3 uBasisU,uBasisV,uBasisN;
+uniform float uSpin,uTime,uBuildPhase,uGenPhase;
+uniform vec4 uWeights; // x: thinking, y: building, z: generating, w: waiting
+uniform float uError,uCollapse,uShift,uMotion;
+uniform mediump float uSampleScale;
+varying mediump vec3 vSurface;
+varying mediump vec4 vInk;
+varying mediump float vPointPixels;
+varying mediump float vDepth;
+varying mediump vec2 vRadial;
+const float PI=3.14159265;
+
+void main(){
+  float c=cos(uSpin), s=sin(uSpin);
+  vec2 eq=vec2(aPos.x*c-aPos.z*s, aPos.x*s+aPos.z*c);
+  vec3 p3=eq.x*uBasisU + eq.y*uBasisV + aPos.y*uBasisN;
+
+  if(p3.z<-.04 || uCollapse>.998){
+    gl_Position=vec4(2.,2.,0.,1.);
+    gl_PointSize=0.;
+    vInk=vec4(0.);
+    vSurface=vec3(1.);
+    vPointPixels=1.;
+    vDepth=0.;
+    vRadial=vec2(1.,0.);
+    return;
+  }
+
+  float z=max(0.,p3.z);
+  float rimFade=smoothstep(0.,.14,z);
+  vec2 pos2=p3.xy*.90;
+  float land=aMeta.x;
+  float seedA=aMeta.y, seedB=aMeta.z, seedC=aMeta.w;
+
+  // 1) Thinking: crisp Earth continents + sparse smooth raised-cosine dot sparkles.
+  float period=mix(1.70,3.50,seedB);
+  float tMod=mod(uTime+seedA*137.5,period);
+  float pulseW=.42;
+  float spark=0.;
+  if(uMotion>.5 && tMod<pulseW){
+    float sp=sin(PI*(tMod/pulseW));
+    spark=sp*sp*mix(.52,1.,seedC);
+  }
+  float thinkAct=clamp(max(land,spark*.98),0.,1.);
+  float thinkDiam=mix(3.95,5.50,land)+spark*mix(2.95,2.50,land);
+
+  // 2) Building: rising latitude scan ring with seamless periodic revealed wake.
+  const float B_LEN=3.10;
+  float bDist=mod(uBuildPhase-aPos.y,B_LEN);
+  float bCrestDist=min(bDist,B_LEN-bDist);
+  float bCrest=exp(-bCrestDist*bCrestDist/(2.*.084*.084));
+  float wakeTrail=1.-smoothstep(1.15,1.88,bDist);
+  float wakeLead=smoothstep(2.94,B_LEN,bDist);
+  float wake=mix(.24,.84,max(wakeTrail,wakeLead));
+  float buildAct=clamp(land*wake+bCrest*.99,0.,1.);
+  float buildDiam=mix(3.60,mix(4.35,5.30,wake),land)+bCrest*mix(3.15,2.60,land);
+
+  // 3) Generating: fast-spinning globe + crisp vertical left-to-right sweep.
+  float waveX=uGenPhase-1.21;
+  float gDx=abs(pos2.x-waveX);
+  float gCrest=exp(-gDx*gDx/(2.*.094*.094))*smoothstep(.31,.22,gDx);
+  float genAct=clamp(land*.72+gCrest*1.0,0.,1.);
+  float genDiam=mix(3.85,5.15,land)+gCrest*mix(3.35,2.80,land);
+
+  // 4) Waiting & Error: steady calm Earth continents.
+  float calmAct=land;
+  float calmDiam=mix(4.00,5.55,land);
+
+  // Normalize active globe weights so collapsing into Standby preserves the outgoing state cleanly.
+  float wT=uWeights.x, wB=uWeights.y, wG=uWeights.z, wCalm=uWeights.w+uError;
+  float wSum=max(wT+wB+wG+wCalm,.0001);
+  wT/=wSum; wB/=wSum; wG/=wSum; wCalm/=wSum;
+
+  float activity=wT*thinkAct + wB*buildAct + wG*genAct + wCalm*calmAct;
+  float diamPx=wT*thinkDiam + wB*buildDiam + wG*genDiam + wCalm*calmDiam;
+
+  // Subtle outward radial lift along the Building scan crest.
+  pos2*=1.+.016*bCrest*wB;
+
+  // Depth shading: smooth spherical taper toward the orb rim.
+  float zScale=mix(.60,1.,pow(z,.65));
+  float zAlpha=mix(.46,1.,pow(z,.72))*rimFade;
+
+  // Standby implosion: outer dots detach first, scatter as dust, and pull inward into the iris.
+  float colFade=1.;
+  float colSize=1.;
+  if(uCollapse>.001){
+    float radN=clamp(length(pos2)/.90,0.,1.);
+    float delay=(1.-radN)*.26+seedB*.18;
+    float cDot=clamp((uCollapse-delay*.48)/(1.-delay*.48),0.,1.);
+    float ease=cDot*cDot*(3.-2.*cDot);
+    float ang=seedA*6.2831853;
+    vec2 scatter=vec2(cos(ang),sin(ang))*(.06+.15*seedC)*sin(PI*cDot);
+    vec2 tang=vec2(-pos2.y,pos2.x)*.20*sin(PI*cDot)*(seedC-.35);
+    pos2=pos2*(1.-.72*ease)+scatter+tang;
+    colSize=mix(1.,.38,ease);
+    colFade=1.-smoothstep(.70,1.,cDot);
+  }
+
+  float alpha=mix(.22,.96,activity)*zAlpha*colFade;
+  float pointPx=max(1.,diamPx*zScale*colSize*uSampleScale);
+
+  vSurface=shellColor(pos2,uError);
+  vInk=vec4(dotInk(pos2,uError),alpha);
+  vPointPixels=pointPx;
+  vDepth=z;
+  float rLen=length(pos2);
+  vRadial=rLen>.001?pos2/rLen:vec2(1.,0.);
+
+  gl_Position=vec4(.84*(pos2+vec2(uShift,0.)),0.,1.);
+  gl_PointSize=ceil(pointPx*1.6+6.*uSampleScale);
+}
+</script>
+<script id="point-fragment" type="text/plain">
+precision mediump float;
+varying mediump vec3 vSurface;
+varying mediump vec4 vInk;
+varying mediump float vPointPixels;
+varying mediump float vDepth;
+varying mediump vec2 vRadial;
+uniform mediump float uSampleScale;
+
+void main(){
+  if(vInk.a<.004)discard;
+  float boxSize=ceil(vPointPixels*1.6+6.*uSampleScale);
+  vec2 offset=(gl_PointCoord-.5)*boxSize;
+  // Flip Y because gl_PointCoord.y runs top-to-bottom while vRadial.y is up.
+  offset.y=-offset.y;
+
+  // Gently foreshorten dots along the radial direction near the limb so they hug the sphere.
+  float squash=mix(.52,1.,smoothstep(.04,.68,vDepth));
+  float compR=dot(offset,vRadial);
+  vec2 compT=offset-vRadial*compR;
+  float distancePx=length(compT+vRadial*(compR/squash));
+
+  float radius=.5*vPointPixels;
+  float aa=max(.85,1.05*uSampleScale);
+  float lumaMask=1.-smoothstep(-aa,aa,distancePx-radius);
+  // Subtle chroma spread into the pale shell preserves the soft optical look of the reference.
+  float chromaMask=1.-smoothstep(-2.4*uSampleScale,2.4*uSampleScale,distancePx-radius);
+  vec3 delta=vInk.rgb-vSurface;
+  float luma=dot(delta,vec3(.299,.587,.114));
+  vec3 chroma=(delta-vec3(luma))*chromaMask;
+  float alpha=max(lumaMask,chromaMask*.32);
+  vec3 rgb=vSurface+(vec3(luma*lumaMask)+chroma)/max(alpha,.0001);
+  gl_FragColor=vec4(rgb,vInk.a*alpha);
+}
+</script>
+<script src="./particles.js"></script>
+<script>
+const canvas=document.querySelector('canvas'), output=document.querySelector('output');
+const states=['Standby','Thinking','Building','Generating','Waiting','Error'];
+const labels=['Ready','Thinking…','Building…','Writing…','Your turn','Something went wrong'];
+let selected=1;
+const buttons=states.map((name,i)=>{
+  const button=document.createElement('button');
+  button.textContent=name;
+  button.onclick=()=>select(i);
+  document.querySelector('nav').append(button);
+  return button;
+});
+function select(i){
+  selected=i;
+  output.textContent=labels[i];
+  buttons.forEach((b,j)=>b.setAttribute('aria-pressed',String(i===j)));
+  placeIndicator();
+}
+function placeIndicator(){
+  const active=buttons[selected], style=active.parentElement.style;
+  style.setProperty('--pill-x',active.offsetLeft+'px');
+  style.setProperty('--pill-y',active.offsetTop+'px');
+  style.setProperty('--pill-width',active.offsetWidth+'px');
+  style.setProperty('--pill-height',active.offsetHeight+'px');
+}
+select(selected);
+new ResizeObserver(placeIndicator).observe(buttons[0].parentElement);
+const gl=canvas.getContext('webgl',{alpha:false,antialias:false});
+
+function programFor(vertexSource,fragmentSource){
+  const program=gl.createProgram();
+  for(const [kind,source] of [[gl.VERTEX_SHADER,vertexSource],[gl.FRAGMENT_SHADER,fragmentSource]]){
+    const shader=gl.createShader(kind);
+    gl.shaderSource(shader,source);
+    gl.compileShader(shader);
+    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));
+    gl.attachShader(program,shader);
+    gl.deleteShader(shader);
+  }
+  gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+  return program;
+}
+
+function start(){
+  const source=id=>document.getElementById(id).textContent;
+  const paletteSrc=source('palette');
+  const shell=programFor(
+    'attribute vec2 pos;void main(){gl_Position=vec4(pos,0.,1.);}',
+    source('fragment').replace('/* palette */',paletteSrc)
+  );
+  const points=programFor(
+    source('point-vertex').replace('/* palette */',paletteSrc),
+    source('point-fragment')
+  );
+  const uniforms=(program,names)=>Object.fromEntries(names.map(name=>[name,gl.getUniformLocation(program,name)]));
+  const shellUniform=uniforms(shell,['size','standby','waiting','err','motion','eyeAge','ringAge','shift']);
+  const dotUniform=uniforms(points,[
+    'uBasisU','uBasisV','uBasisN','uSpin','uTime','uBuildPhase','uGenPhase',
+    'uWeights','uError','uCollapse','uShift','uMotion','uSampleScale'
+  ]);
+
+  const posLoc=gl.getAttribLocation(shell,'pos');
+  const aPosLoc=gl.getAttribLocation(points,'aPos');
+  const aMetaLoc=gl.getAttribLocation(points,'aMeta');
+
+  const triangle=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,triangle);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+
+  const globeVerts=HSNGlobe.createVertices(HSNGlobe.DEFAULT_COUNT);
+  const dotCount=globeVerts.length/7;
+  const dots=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,dots);
+  gl.bufferData(gl.ARRAY_BUFFER,globeVerts,gl.STATIC_DRAW);
+
+  const {u:basisU,v:basisV,n:basisN}=HSNGlobe.axisBasis;
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+
+  const DEG=Math.PI/180;
+  // Angular velocity around the tilted Earth axis (rad/s) measured from the reference:
+  // Standby, Thinking, Building, Generating, Waiting, Error
+  const targetOmega=[8*DEG, 26.2*DEG, 15.0*DEG, 83.5*DEG, 0, 0];
+  const shakePositions=[0,-1.5,-3,-3.5,-3.5,-3.5,1,2,3,3,3,0,-1.5,-2,-2,-2,0,1,1,1,1.5,1,0];
+
+  const weights=states.map((_,i)=>Number(i===selected));
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  let previousState=selected, previousTime=null;
+  let elapsed=0, spin=0, omega=targetOmega[selected];
+  let buildPhase=-1.05, genPhase=0.0;
+  let eyeAge=0, ringAge=0, errorAge=0;
+  let collapse=selected===0?1:0;
+
+  function stepAndRender(dt){
+    if(gl.isContextLost())return;
+    const entering=selected!==previousState;
+    if(entering){
+      if(selected===0)eyeAge=0;
+      if(selected===2 && weights[2]<.15)buildPhase=-1.05;
+      if(selected===3 && weights[3]<.15)genPhase=0.0;
+      if(selected===4)ringAge=0;
+      if(selected===5)errorAge=0;
+      previousState=selected;
+    }
+
+    const motion=reduced.matches?0:1;
+    const blendRate=selected===0?6.5:(selected===5?12.0:7.5);
+    const blend=reduced.matches?1:1-Math.exp(-dt*blendRate);
+    for(let i=0;i<weights.length;i++){
+      weights[i]+=(Number(i===selected)-weights[i])*blend;
+    }
+
+    if(!reduced.matches){
+      elapsed+=dt;
+      const omegaRate=selected===5?18.0:(selected===4?3.8:4.2);
+      omega+=(targetOmega[selected]-omega)*(1-Math.exp(-dt*omegaRate));
+      spin+=omega*dt;
+
+      // Continuous periodic wave phases: never snap or jump at loop boundaries.
+      if(weights[2]>.002 || selected===2){
+        buildPhase=(buildPhase+dt*.95+3.10)%3.10;
+      }
+      if(weights[3]>.002 || selected===3){
+        genPhase=(genPhase+dt*2.22)%2.42;
+      }
+      if(selected===0 || weights[0]>.002)eyeAge+=dt;
+      if(selected===4 || weights[4]>.002)ringAge+=dt;
+      if(selected===5 || weights[5]>.002)errorAge+=dt;
+    }
+
+    // Smooth Standby collapse/expand progress.
+    if(reduced.matches){
+      collapse=selected===0?1:0;
+    }else if(selected===0){
+      collapse=Math.min(1,collapse+dt/0.66);
+    }else{
+      collapse=Math.max(0,collapse-dt/0.40);
+    }
+
+    const ratio=Math.min(devicePixelRatio,2);
+    const pixels=Math.round(canvas.clientWidth*ratio);
+    if(canvas.width!==pixels || canvas.height!==pixels){
+      canvas.width=canvas.height=pixels;
+      gl.viewport(0,0,pixels,pixels);
+    }
+
+    const shakeFrame=Math.min(errorAge*60,shakePositions.length-1);
+    const lower=Math.floor(shakeFrame), fraction=shakeFrame-lower;
+    const shake=!reduced.matches && selected===5
+      ? (shakePositions[lower]*(1-fraction)+shakePositions[Math.ceil(shakeFrame)]*fraction)/130
+      : 0;
+
+    // Pass 1: Shell, Waiting pulse ring, and Standby iris.
+    gl.useProgram(shell);
+    gl.disable(gl.BLEND);
+    gl.bindBuffer(gl.ARRAY_BUFFER,triangle);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc,2,gl.FLOAT,false,0,0);
+    gl.uniform2f(shellUniform.size,pixels,pixels);
+    gl.uniform1f(shellUniform.standby,weights[0]);
+    gl.uniform1f(shellUniform.waiting,weights[4]);
+    gl.uniform1f(shellUniform.err,weights[5]);
+    gl.uniform1f(shellUniform.motion,motion);
+    gl.uniform1f(shellUniform.eyeAge,eyeAge);
+    gl.uniform1f(shellUniform.ringAge,ringAge);
+    gl.uniform1f(shellUniform.shift,shake);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.disableVertexAttribArray(posLoc);
+
+    // Pass 2: Continuous 3D dot-matrix Earth globe.
+    if(collapse<.998){
+      gl.useProgram(points);
+      gl.enable(gl.BLEND);
+      gl.bindBuffer(gl.ARRAY_BUFFER,dots);
+      gl.enableVertexAttribArray(aPosLoc);
+      gl.enableVertexAttribArray(aMetaLoc);
+      gl.vertexAttribPointer(aPosLoc,3,gl.FLOAT,false,28,0);
+      gl.vertexAttribPointer(aMetaLoc,4,gl.FLOAT,false,28,12);
+      gl.uniform3fv(dotUniform.uBasisU,basisU);
+      gl.uniform3fv(dotUniform.uBasisV,basisV);
+      gl.uniform3fv(dotUniform.uBasisN,basisN);
+      gl.uniform1f(dotUniform.uSpin,spin);
+      gl.uniform1f(dotUniform.uTime,elapsed);
+      gl.uniform1f(dotUniform.uBuildPhase,buildPhase);
+      gl.uniform1f(dotUniform.uGenPhase,genPhase);
+      gl.uniform4f(dotUniform.uWeights,weights[1],weights[2],weights[3],weights[4]);
+      gl.uniform1f(dotUniform.uError,weights[5]);
+      gl.uniform1f(dotUniform.uCollapse,collapse);
+      gl.uniform1f(dotUniform.uShift,shake);
+      gl.uniform1f(dotUniform.uMotion,motion);
+      gl.uniform1f(dotUniform.uSampleScale,pixels*.84/260);
+      gl.drawArrays(gl.POINTS,0,dotCount);
+      gl.disableVertexAttribArray(aPosLoc);
+      gl.disableVertexAttribArray(aMetaLoc);
+    }
+  }
+
+  function frame(now){
+    if(gl.isContextLost())return;
+    const dt=previousTime===null?0:Math.min(.15,(now-previousTime)/1000);
+    previousTime=now;
+    stepAndRender(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+canvas.addEventListener('webglcontextlost',e=>e.preventDefault());
+canvas.addEventListener('webglcontextrestored',start);
+if(gl)start();else{output.textContent='WebGL unavailable';buttons.forEach(b=>b.disabled=true);}
+</script>
+</html>

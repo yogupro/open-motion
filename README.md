@@ -17,11 +17,13 @@
 <table>
   <tr valign="top">
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/05-liquid-dock/index.html"><img src="./assets/05-liquid-dock.webp" alt="渐变背景上的可拖动胶囊与液化参数面板" width="480"></a><br>
       <strong>液化边缘吸附</strong><br>
       拖动胶囊离开屏幕边缘，观察液桥拉伸、断开与重新吸附。<br>
       <a href="https://yogupro.github.io/open-motion/05-liquid-dock/index.html">在线体验</a> · <a href="./05-liquid-dock/README.md">案例资料</a>
     </td>
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/06-before-after-physics/index.html"><img src="./assets/06-before-after-physics.webp" alt="拖拽分割线两侧分别展示建筑蓝图和室内效果图" width="480"></a><br>
       <strong>Before / After 拖拽对比</strong><br>
       拖动同一条分割线，比较回弹、惯性与磁吸三种手感。<br>
       <a href="https://yogupro.github.io/open-motion/06-before-after-physics/index.html">在线体验</a> · <a href="./06-before-after-physics/README.md">案例资料</a>
@@ -29,6 +31,7 @@
   </tr>
   <tr valign="top">
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/07-patient-funnel-webgl/index.html"><img src="./assets/07-patient-funnel-webgl.webp" alt="深色面板上的患者流转数字和橙色粒子漏斗" width="480"></a><br>
       <strong>患者流转漏斗</strong><br>
       切换诊疗场景，观察漏斗轮廓、数字与粒子同步过渡。<br>
       <a href="https://yogupro.github.io/open-motion/07-patient-funnel-webgl/index.html">在线体验</a> · <a href="./07-patient-funnel-webgl/README.md">案例资料</a>
@@ -56,11 +59,13 @@
   </tr>
   <tr valign="top">
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/08-kippe-progress-motion/index.html"><img src="./assets/08-kippe-progress-motion.webp" alt="暂停中的进度线在端点附近折出波形" width="480"></a><br>
       <strong>进度线的暂停与回弹</strong><br>
       暂停时进度线折起，继续时从折痕处展开并接着前进。<br>
       <a href="https://yogupro.github.io/open-motion/08-kippe-progress-motion/index.html">在线体验</a> · <a href="./08-kippe-progress-motion/README.md">案例资料</a>
     </td>
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/09-cutout-particles-webgl/index.html"><img src="./assets/09-cutout-particles-webgl.webp" alt="柠檬主体浮出背景并形成贴纸白边" width="480"></a><br>
       <strong>抠图粒子消散与高光描边</strong><br>
       照片背景碎成方块散开，主体抬起并浮现贴纸白边。<br>
       <a href="https://yogupro.github.io/open-motion/09-cutout-particles-webgl/index.html">在线体验</a> · <a href="./09-cutout-particles-webgl/README.md">案例资料</a>
@@ -68,6 +73,7 @@
   </tr>
   <tr valign="top">
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/10-tactile-button/index.html"><img src="./assets/10-tactile-button.webp" alt="白底上的胶囊按钮、棱镜边框与红色心形" width="480"></a><br>
       <strong>流光棱镜微交互按钮</strong><br>
       悬停点亮棱镜边框，按下时心形图标弹起。<br>
       <a href="https://yogupro.github.io/open-motion/10-tactile-button/index.html">在线体验</a> · <a href="./10-tactile-button/README.md">案例资料</a>
@@ -81,11 +87,13 @@
   </tr>
   <tr valign="top">
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/11-anuar-node-connections/index.html"><img src="./assets/11-anuar-node-connections.webp" alt="文档接入、内容解析和索引写入节点之间亮起连线" width="480"></a><br>
       <strong>文档索引工作流</strong><br>
       启动工作流后，数据包沿连线依次经过接入、解析和索引写入。<br>
       <a href="https://yogupro.github.io/open-motion/11-anuar-node-connections/index.html">在线体验</a> · <a href="./11-anuar-node-connections/README.md">案例资料</a>
     </td>
     <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/12-voice-particles-webgl/index.html"><img src="./assets/12-voice-particles-webgl.webp" alt="两个深色语音面板底部呈现彩色粒子声波" width="480"></a><br>
       <strong>语音助手 · 粒子声波</strong><br>
       两个面板独立演示聆听、思考与粒子声波。<br>
       <a href="https://yogupro.github.io/open-motion/12-voice-particles-webgl/index.html">在线体验</a> · <a href="./12-voice-particles-webgl/README.md">案例资料</a>

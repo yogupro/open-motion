@@ -1,11 +1,11 @@
 <h1 align="center">
-  <img src="./assets/cover.webp" alt="Open Remotion" width="1120">
+  <img src="./assets/cover.webp" alt="OpenMotion" width="1120">
 </h1>
 
 <p align="center"><strong>开源 UI 微交互资料库</strong></p>
 <p align="center">从滑块、状态提示到加载与手势确认，每个案例都提供界面源码与动效拆解。</p>
 <p align="center">
-  <a href="#案例画廊">案例画廊</a> · <a href="#资料索引">资料索引</a> · <a href="./LICENSE">Apache 2.0</a>
+  <a href="#案例画廊">案例画廊</a> · <a href="#资料索引">资料索引</a> · <a href="#关于有谷">关于有谷</a> · <a href="./LICENSE">Apache 2.0</a>
 </p>
 
 ## 案例画廊
@@ -50,4 +50,10 @@
 | 导出光带 | [单文件 HTML](./03-webgl-loading/index.html) | [微交互原理速查手册](./03-webgl-loading/导出光带-微交互原理速查手册.md) |
 | 上滑转账 | [界面入口](./04-swipe-send/index.html) · [手势与动效](./04-swipe-send/motion.js) · [光效渲染](./04-swipe-send/renderer.js) | [微交互原理速查手册](./04-swipe-send/上滑转账-微交互原理速查手册.md) |
 
-[有谷 Yogu](https://yogu.pro) 维护 · [Apache License 2.0](./LICENSE)
+## 关于有谷
+
+<img src="./assets/yogu-logo.png" alt="智慧力量公司标志" width="212" height="58">
+
+**杭州智慧力量科技有限公司（有谷 Yogu）**开发面向个人和团队的 AI 产品，涵盖知识工作与学习、内容与媒体生产，以及企业智能应用。OpenMotion 由有谷维护，用于分享 UI 微交互案例、源码与原理笔记。
+
+[公司官网](https://yogu.pro) · [联系我们](https://yogu.pro/contact)

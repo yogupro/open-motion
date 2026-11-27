@@ -18,7 +18,3 @@
    - 8 条可以直接拿去改自己加载态的检查清单
 
 系统打开「减少动态效果」时，光带和模糊会停掉，对话框直接切到完成态。
-
-## 知识库归档版本
-
-同一套光带与逐行去模糊动效也用于有谷大脑的知识库归档弹窗，展示从整理知识库文档到生成离线归档的过程。[界面源码](./archive-export.html) · [在线体验](https://yogupro.github.io/open-motion/03-webgl-loading/archive-export.html)

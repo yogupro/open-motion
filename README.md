@@ -48,10 +48,10 @@
       <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html">在线体验</a> · <a href="./01-codex-ultra-slider/README.md">案例资料</a> · <a href="./assets/01-codex-ultra-slider.mp4">MP4 演示</a>
     </td>
     <td width="50%">
-      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/archive-export.html"><img src="./assets/03-webgl-loading.webp" alt="导出弹窗底部的暖色光带与进度文案" width="480"></a><br>
+      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/"><img src="./assets/03-webgl-loading.webp" alt="导出弹窗底部的暖色光带与进度文案" width="480"></a><br>
       <strong>导出光带</strong><br>
       暖色光带上移，文件摘要逐行恢复清晰。<br>
-      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/archive-export.html">归档演示</a> · <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">导出演示</a> · <a href="./03-webgl-loading/README.md">案例资料</a> · <a href="./assets/03-webgl-loading.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">在线体验</a> · <a href="./03-webgl-loading/README.md">案例资料</a> · <a href="./assets/03-webgl-loading.mp4">MP4 演示</a>
     </td>
   </tr>
   <tr valign="top">
@@ -102,7 +102,7 @@
 | 患者流转漏斗 | WebGL 粒子 | [界面入口](./07-patient-funnel-webgl/index.html) | [README](./07-patient-funnel-webgl/README.md) |
 | Agent Orb | WebGL 点阵球 | [界面入口](./02-agent-orb/index.html) | [README](./02-agent-orb/README.md) |
 | Codex Ultra 能量滑轨 | 弹簧与 WebGL | [界面入口](./01-codex-ultra-slider/codex-ultra-slider.html) | [README](./01-codex-ultra-slider/README.md) · [原理速查手册](./01-codex-ultra-slider/Codex-Ultra-微交互原理速查手册.md) |
-| 导出光带 | WebGL 着色器 | [归档版本](./03-webgl-loading/archive-export.html) · [导出版本](./03-webgl-loading/index.html) | [README](./03-webgl-loading/README.md) · [原理速查手册](./03-webgl-loading/导出光带-微交互原理速查手册.md) |
+| 导出光带 | WebGL 着色器 | [单文件 HTML](./03-webgl-loading/index.html) | [README](./03-webgl-loading/README.md) · [原理速查手册](./03-webgl-loading/导出光带-微交互原理速查手册.md) |
 | 进度线的暂停与回弹 | SVG 与弹簧 | [界面入口](./08-kippe-progress-motion/index.html) | [README](./08-kippe-progress-motion/README.md) |
 | 抠图粒子消散与高光描边 | WebGL 2 粒子 | [界面入口](./09-cutout-particles-webgl/index.html) | [README](./09-cutout-particles-webgl/README.md) |
 | 流光棱镜微交互按钮 | CSS Houdini | [界面入口](./10-tactile-button/index.html) | [README](./10-tactile-button/README.md) |

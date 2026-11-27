@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>有谷大脑 · 知识库归档导出</title>
+<style>
+* { box-sizing: border-box }
+body { margin: 0; color: #08090a; font: 14px/1.4 'Inter', system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: -.011em; background: #f8f9fb; -webkit-font-smoothing: antialiased }
+button { color: inherit; font: inherit; cursor: pointer; border: 0 }
+button:focus-visible { outline: 2px solid #3596ff; outline-offset: 2px }
+[hidden] { display: none !important }
+.scene { position: fixed; inset: 0; overflow: hidden; display: grid; place-items: center }
+.stage { position: absolute; width: calc(100% / var(--stage-scale, 1)); height: calc(100% / var(--stage-scale, 1)); left: 50%; top: 50%; transform: translate(-50%, -50%) scale(var(--stage-scale, 1)) }
+.library {
+  position: absolute; inset: 0; display: grid; grid-template-columns: 220px 1fr; overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #08090a; background: #ffffff; pointer-events: none; user-select: none;
+}
+.library .library-sidebar { background: #f8f9fb; border-right: 1px solid #e5e7eb; padding: 18px 12px; display: flex; flex-direction: column; }
+.library .library-brand { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; }
+.library .library-mark { position: relative; width: 28px; height: 28px; flex: none; display: grid; place-items: center; }
+.library .library-brand-text { min-width: 0; }
+.library .library-brand-name { font-size: 14px; font-weight: 600; color: #08090a; line-height: 1.25; }
+.library .library-brand-sub { font-size: 11px; color: #6b6f76; line-height: 1.3; }
+.library .library-nav { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.library .library-nav li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px; border-radius: 6px; color: #3f444d; }
+.library .library-nav li span { width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; }
+.library .library-section { margin: 22px 10px 6px; font-size: 11px; font-weight: 500; color: #6b6f76; letter-spacing: .02em; }
+.library .library-projects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.library .library-projects li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; border-radius: 6px; color: #3f444d; }
+.library .library-projects li::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: #cbd5e1; flex: none; }
+.library .library-projects .current { background: #e8f2ff; color: #1d74e8; font-weight: 600; }
+.library .library-projects .current::before { background: #3596ff; }
+.library .library-main { min-width: 0; padding: 26px 38px; background: #ffffff; }
+.library .library-path { color: #6b6f76; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.library .library-path span { color: #b6bcc6; }
+.library .library-header-row { display: flex; align-items: flex-end; justify-content: space-between; margin: 20px 0 18px; }
+.library h2 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0 0 6px; letter-spacing: -.02em; color: #08090a; }
+.library .library-count { color: #6b6f76; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.library .library-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px; background: #e8f2ff; color: #2579e5; font-size: 11.5px; font-weight: 500; }
+.library table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 13.5px; }
+.library th, .library td { text-align: left; border-bottom: 1px solid #eef0f3; }
+.library th { font-weight: 500; color: #6b6f76; height: 34px; font-size: 12px; }
+.library td { height: 47px; color: #08090a; }
+.library th:first-child { width: 61%; }
+.library th:last-child, .library td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.library td:first-child { font-weight: 500; }
+.library td + td { color: #6b6f76; font-size: 13px; }
+.library td i { display: inline-block; position: relative; width: 19px; height: 23px; border: 1px solid; border-radius: 4px 7px 4px 4px; margin-right: 12px; vertical-align: middle; }
+.library td i::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 6px; height: 1px; background: currentColor; box-shadow: 0 -3px currentColor; }
+.library .image-file { color: #3596ff; background: #e8f2ff; }
+.library .vector-file { color: #766547; background: #fffbec; }
+.library .text-file { color: #7c66dc; background: #f3f0ff; }
+.scrim { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(8,9,10,.42), rgba(12,14,18,.52) 50%, rgba(12,15,20,.60)) }
+.viewport { position: absolute; width: 456px; height: 474px; transform: scale(var(--dialog-scale, 1)) }
+.export-dialog {
+  position: relative; width: 100%; height: 100%; isolation: isolate; overflow: hidden;
+  border-radius: 32px; background: #fdfefc; box-shadow: 0 6px 20px #181a1710;
+}
+.viewport.open .export-dialog { animation: appear 290ms cubic-bezier(.16,.8,.2,1) both }
+@keyframes appear { from { transform: translateY(10px) scale(.975); opacity: 0 } }
+.header { position: absolute; top: 27px; left: 28px; right: 59px }
+h1 { font-size: 20px; font-weight: 500; line-height: 25px; letter-spacing: -.45px; margin: 0 }
+.header p { font-size: 14px; line-height: 20px; letter-spacing: -.08px; color: #353635; margin: 2px 0 0 }
+.close { position: absolute; right: 27px; top: 27px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #eeeeed; z-index: 5 }
+.close::before, .close::after { content: ""; width: 14px; height: 1.5px; background: #202220; position: absolute; transform: rotate(45deg) }
+.close::after { transform: rotate(-45deg) }
+.details-bg { position: absolute; left: 16px; right: 16px; top: 95px; bottom: 77px; border-radius: 22px; background: #f3f4f2 }
+.file-summary { position: absolute; left: 47px; right: 46px; top: 117px }
+.file-label { font-size: 13px; margin: 0 0 3px; line-height: 19px }
+.filename { font-size: 35px; font-weight: 410; line-height: 43px; white-space: nowrap; letter-spacing: -.30px; font-variant-numeric: tabular-nums }
+.filename span { color: #494a49 }
+.export-dialog.success .filename { color: #26a65b }
+.export-dialog.success .filename span { color: #74c997 }
+.archive-icon { position: absolute; right: 0; bottom: 6px; width: 34px; height: 34px; padding: 5px; color: #6b6f76; }
+.export-dialog.success .archive-icon { color: #26a65b }
+.rows { position: absolute; top: 196px; left: 47px; right: 46px; margin: 0 }
+.row { display: flex; align-items: center; justify-content: space-between; height: 47px; border-bottom: 1px solid #dedfdc; font-size: 14px; letter-spacing: .04px }
+.row:last-child { border: 0 }
+dt { color: #4b4d49 }
+dd { margin: 0; font-weight: 400 }
+.actions { position: absolute; height: 46px; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 8px }
+.actions button, .replay { flex: 1; border-radius: 24px; background: #eeeeed; color: #101110; font-size: 14px; font-weight: 420 }
+.actions .primary, .replay { color: #fff; background: #18181a }
+.actions button:hover, .close:hover, .replay:hover { filter: brightness(.94) }
+.visuals, .visuals canvas { position: absolute; inset: 0; height: 100%; width: 100%; pointer-events: none }
+.visuals { z-index: 3; overflow: hidden; border-radius: inherit }
+.export-dialog::after { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255,255,255,.72); pointer-events: none }
+.status { z-index: 2; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 14px; font-weight: 500; letter-spacing: -.15px; pointer-events: none }
+.ring { width: 15px; height: 15px; border-radius: 50%; background: conic-gradient(from 20deg, #202120, #777 55%,#d6d6d3 83%, #242524); mask: radial-gradient(farthest-side,transparent calc(100% - 1.4px), #000 calc(100% - 1px)); animation: spin .9s linear infinite }
+@keyframes spin { to { transform: rotate(1turn) } }
+.message { background: linear-gradient(100deg,#353633 12%,#babbb9 31%,#333532 50%) 100% 0 / 225% 100%; background-clip: text; color: transparent; animation: shimmer 1.35s linear infinite }
+@keyframes shimmer { to { background-position: -80% 0 } }
+.replay { position: absolute; padding: 13px 25px; box-shadow: 0 4px 14px #1112 }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important } }
+</style>
+</head>
+<body>
+<main class="scene" aria-label="有谷大脑知识库导出动画演示">
+  <div class="stage"><div class="library" aria-hidden="true">
+  <aside class="library-sidebar">
+    <div class="library-brand">
+      <span class="library-mark">
+        <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
+          <defs><linearGradient id="yg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4ba3ff"/><stop offset="100%" stop-color="#1e78ff"/></linearGradient></defs>
+          <path d="M14.2 2.4a3.6 3.6 0 0 1 3.6 0l9.6 5.5a3.6 3.6 0 0 1 1.8 3.1v10a3.6 3.6 0 0 1-1.8 3.1l-9.6 5.5a3.6 3.6 0 0 1-3.6 0l-9.6-5.5a3.6 3.6 0 0 1-1.8-3.1V11a3.6 3.6 0 0 1 1.8-3.1l9.6-5.5Z" fill="url(#yg)"/>
+          <path d="M16 9.5 21.6 12.7v6.6L16 22.5l-5.6-3.2v-6.6L16 9.5Z" fill="#fff"/>
+        </svg>
+      </span>
+      <div class="library-brand-text">
+        <div class="library-brand-name">有谷大脑</div>
+        <div class="library-brand-sub">产品研发工作区</div>
+      </div>
+    </div>
+    <ul class="library-nav">
+      <li><span></span>AI 问答</li>
+      <li><span></span>全局搜索</li>
+      <li><span></span>知识图谱</li>
+    </ul>
+    <div class="library-section">知识库</div>
+    <ul class="library-projects">
+      <li class="current">产品架构与研发文档</li>
+      <li>行业研报库</li>
+      <li>客户方案沉淀</li>
+    </ul>
+    <div class="library-section">记忆库</div>
+    <ul class="library-projects">
+      <li>团队共识记忆</li>
+    </ul>
+  </aside>
+  <section class="library-main">
+    <div class="library-path">有谷大脑 <span>/</span> 知识库 <span>/</span> 产品架构与研发文档</div>
+    <div class="library-header-row">
+      <div>
+        <h2>产品架构与研发文档</h2>
+        <div class="library-count">24 篇文档 <span class="library-badge">已完成向量索引</span></div>
+      </div>
+    </div>
+    <table><thead><tr><th>文档名称</th><th>类型</th><th>大小</th></tr></thead>
+      <tbody>
+        <tr><td><i class="image-file"></i>AI 智能体架构白皮书.pdf</td><td>PDF</td><td>8.6 MB</td></tr>
+        <tr><td><i class="vector-file"></i>RAG 混合检索召回评测.md</td><td>文档</td><td>2.1 MB</td></tr>
+        <tr><td><i class="text-file"></i>知识图谱实体抽取规范.docx</td><td>规范</td><td>480 KB</td></tr>
+        <tr><td><i class="image-file"></i>有谷大脑 2.0 交互设计稿.pdf</td><td>PDF</td><td>12.4 MB</td></tr>
+        <tr><td><i class="image-file"></i>多模态文档解析管线.pdf</td><td>PDF</td><td>10.8 MB</td></tr>
+        <tr><td><i class="vector-file"></i>工作区权限模型矩阵.md</td><td>文档</td><td>1.3 MB</td></tr>
+        <tr><td><i class="text-file"></i>客户端离线同步方案.md</td><td>文档</td><td>820 KB</td></tr>
+        <tr><td><i class="image-file"></i>记忆库生命周期设计.pdf</td><td>PDF</td><td>5.7 MB</td></tr>
+        <tr><td><i class="image-file"></i>企业级私有化部署手册.pdf</td><td>PDF</td><td>7.2 MB</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div></div>
+  <div class="scrim"></div>
+  <div class="viewport">
+    <section class="export-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <header class="header"><h1 id="dialog-title">导出知识库归档</h1><p>将选中的知识库文档打包为离线归档。</p></header>
+      <button class="close" aria-label="关闭预览"></button>
+      <div class="details-bg"></div>
+      <div class="file-summary"><div class="file-label">归档文件名</div><div class="filename">知识库归档<span>.zip</span></div><svg class="archive-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v13H3zM2 4h20v4H2zM9 12h6"/></svg></div>
+      <dl class="rows">
+        <div class="row"><dt>所属知识库</dt><dd>产品架构与研发文档</dd></div>
+        <div class="row"><dt>文档数量</dt><dd>24 篇</dd></div>
+        <div class="row"><dt>导出格式</dt><dd>ZIP 离线归档</dd></div>
+        <div class="row"><dt>预计大小</dt><dd>128.4 MB</dd></div>
+      </dl>
+      <div class="actions"><button class="cancel">取消</button><button class="primary">开始导出</button></div>
+      <div class="visuals" aria-hidden="true" hidden><canvas class="field"></canvas><canvas class="particles"></canvas></div>
+      <div class="status" role="status" hidden><span class="ring"></span><span class="message">正在整理知识库文档…</span></div>
+    </section>
+  </div>
+  <button class="replay" hidden>再看一次</button>
+</main>
+<script>
+// A five-lobe approximation to the warm color field. Each lobe is an elliptical
+// Gaussian with measured center, spread (UV units) and intensity. Its motion
+// is interpolated between samples spaced 150 ms apart.
+function createGlow(effect, field, particleCanvas) {
+  const keyframes = [
+    [.487,-.150,.121,.060,.755,.161,.115,.157,.083,.049,.082,-.118,.124,.060,.279,1.155,.082,.070,.119,.549,.679,.114,.209,.090,.056],
+    [.538,-.197,.152,.124,.684,.077,.094,.180,.114,.185,.097,-.131,.070,.111,.163,.873,.070,.141,.061,.169,.652,.169,.255,.088,.161],
+    [.520,-.150,.149,.126,.580,.048,.097,.207,.128,.242,.108,-.075,.070,.123,.153,.877,.072,.133,.069,.281,.659,.179,.274,.089,.220],
+    [.508,.030,.172,.060,.301,.100,.142,.123,.157,.212,.108,.064,.161,.060,.161,.895,.079,.157,.068,.336,.611,.201,.338,.076,.252],
+    [.514,.033,.174,.060,.303,.217,.207,.160,.161,.294,.107,.070,.100,.060,.248,.916,.082,.164,.071,.377,.667,.211,.392,.077,.230],
+    [.467,.039,.182,.060,.366,.326,.223,.165,.140,.341,.120,.071,.111,.063,.291,.927,.084,.146,.091,.458,.629,.213,.539,.081,.224],
+    [.460,.039,.167,.060,.460,.353,.193,.199,.095,.459,.131,.069,.132,.065,.275,.911,.098,.150,.113,.473,.816,.249,.448,.119,.136],
+    [.456,.039,.175,.060,.525,.368,.193,.221,.088,.489,.146,.069,.144,.065,.288,.884,.104,.159,.115,.454,.911,.295,.215,.117,.139],
+    [.455,.039,.182,.060,.556,.372,.192,.231,.082,.429,.156,.071,.153,.068,.298,.878,.104,.169,.108,.432,.880,.299,.168,.110,.151],
+    [.470,.037,.178,.060,.536,.391,.197,.255,.079,.346,.144,.074,.176,.071,.282,.879,.095,.162,.093,.472,.910,.285,.152,.091,.159],
+    [.490,.034,.181,.060,.500,.393,.197,.286,.076,.291,.138,.073,.154,.071,.297,.870,.095,.161,.094,.538,.907,.283,.159,.082,.155],
+    [.502,.035,.181,.060,.489,.371,.199,.306,.074,.258,.146,.075,.152,.071,.304,.844,.087,.158,.086,.574,.851,.256,.156,.073,.160],
+    [.505,.033,.188,.060,.416,.338,.200,.321,.073,.225,.143,.077,.148,.071,.304,.802,.081,.174,.081,.517,.794,.236,.166,.071,.153],
+    [.502,.032,.200,.060,.359,.288,.203,.276,.072,.215,.148,.077,.153,.071,.308,.804,.081,.221,.074,.380,.797,.218,.182,.069,.180],
+    [.489,.033,.197,.060,.353,.251,.206,.224,.071,.209,.162,.081,.212,.073,.299,.852,.077,.173,.069,.345,.790,.211,.217,.068,.199],
+    [.488,.031,.192,.060,.346,.230,.203,.223,.071,.202,.146,.077,.158,.070,.305,.863,.077,.216,.071,.297,.736,.211,.242,.070,.176],
+    [.480,.033,.193,.060,.364,.232,.198,.182,.084,.278,.135,.070,.131,.069,.306,.830,.078,.177,.073,.337,.697,.212,.216,.072,.212],
+    [.485,.033,.193,.060,.372,.173,.166,.158,.121,.500,.114,.054,.101,.060,.228,.857,.079,.156,.072,.349,.671,.207,.242,.074,.243],
+    [.502,.034,.180,.060,.373,.123,.140,.164,.131,.564,.122,.050,.098,.060,.158,.899,.083,.166,.079,.449,.742,.212,.302,.075,.246],
+    [.506,.033,.177,.060,.370,.102,.129,.159,.131,.547,.131,.051,.105,.060,.142,.916,.094,.164,.108,.515,.746,.209,.378,.089,.223],
+    [.493,.027,.185,.060,.348,.117,.130,.144,.132,.499,.114,.049,.099,.060,.160,.914,.118,.151,.180,.560,.603,.181,.285,.093,.279],
+    [.495,.028,.183,.060,.356,.140,.136,.137,.127,.347,.107,.057,.111,.060,.203,.891,.138,.154,.194,.581,.548,.185,.293,.091,.305],
+    [.479,.031,.194,.060,.368,.184,.194,.171,.082,.219,.120,.065,.127,.066,.283,.884,.127,.150,.184,.529,.587,.183,.274,.093,.292],
+    [.462,.040,.196,.060,.489,.354,.198,.241,.085,.392,.143,.071,.147,.066,.298,.886,.102,.160,.097,.522,.913,.276,.156,.094,.204],
+    [.438,.056,.193,.063,.629,.359,.226,.236,.089,.426,.160,.083,.151,.079,.300,.888,.110,.144,.086,.450,.902,.270,.170,.072,.199]
+  ];
+  const sweep = [
+    [5.43, 0], [5.53, .042], [5.60, .083], [5.67, .169], [5.73, .277],
+    [5.77, .375], [5.80, .451], [5.87, .621], [5.93, .87], [6.00, 1.14], [6.07, 1.44]
+  ];
+  function sweepAt(time) {
+    for (let i = 1; i < sweep.length; i++) {
+      if (time > sweep[i][0]) continue;
+      const [start, from] = sweep[i - 1];
+      return from + (sweep[i][1] - from) * Math.max(0, (time - start) / (sweep[i][0] - start));
+    }
+    return sweep[sweep.length - 1][1];
+  }
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const ease = x => { const t = clamp(x); return t * t * (3 - 2 * t); };
+  const fragmentShader = `
+    precision highp float;
+    varying vec2 uv;
+    uniform vec4 shape[5];
+    uniform float power[5];
+    uniform float lift, gain;
+    uniform vec2 trail; // center lag (UV height), trailing-edge extension
+    uniform vec2 resolution;
+    float lobe(vec4 ellipse, float strength, vec2 p) {
+      vec2 q = (p - ellipse.xy) / ellipse.zw;
+      return strength * exp(-.5 * dot(q, q));
+    }
+    void main() {
+      float stretch = 1.0 + .65 * smoothstep(0.0,.46,lift);
+      float center = 1.0 - smoothstep(0.0, .34, abs(uv.x - shape[0].x));
+      float localLift = lift - trail.x * center;
+      float y = (uv.y - localLift) / stretch;
+      // Stretch only the lower half of the passing warm core.
+      float belowCore = min(0.0, y - shape[0].y);
+      y -= belowCore * (1.0 - 1.0 / (1.0 + trail.y * center));
+      vec2 p = vec2(uv.x, y);
+      float yellow = lobe(shape[0],power[0],p);
+      float coral = lobe(shape[1],power[1],p);
+      float lilac = lobe(shape[2],power[2],p);
+      float orchid = lobe(shape[3],power[3],p);
+      float rose = lobe(shape[4],power[4],p);
+      float greenDeficit = dot(vec4(yellow,coral,lilac,orchid),vec4(.29,.78,1.,1.))+.72*rose;
+      float blueDeficit = dot(vec4(yellow,coral,lilac,orchid),vec4(1.,.55,-.13,-.05))+.48*rose;
+      // The diffuse peach halo sits above the much narrower yellow light at the rim.
+      float peach = exp(-.5 * dot((p - vec2(shape[1].x,.30)) / vec2(.32,.14),
+                                 (p - vec2(shape[1].x,.30)) / vec2(.32,.14)));
+      vec3 tint = vec3(0.,-greenDeficit + .14*yellow + .035*peach,
+                       -blueDeficit - .042*peach);
+      tint -= max(tint.r,max(tint.g,tint.b));
+      float density = min(1.,-min(tint.r,min(tint.g,tint.b))*1.27);
+      float noise = fract(52.9829189*fract(dot(floor(uv*resolution),vec2(.06711056,.00583715))))-.5;
+      vec3 ink = clamp(vec3(.984 + .012*noise) + tint / max(.001,density),0.,1.);
+      gl_FragColor = vec4(ink, density*gain);
+    }`;
+  const vertexShader = `
+    attribute vec2 position;
+    varying vec2 uv;
+    void main() { uv = .5 + .5 * position; gl_Position = vec4(position,0.,1.); }`;
+  const programOptions = { alpha: true, antialias: false, depth: false, premultipliedAlpha: false };
+  const gl = field.getContext("webgl", programOptions);
+  function createProgram() {
+    if (!gl) return null;
+    const program = gl.createProgram();
+    for (const [type, source] of [[gl.VERTEX_SHADER,vertexShader],[gl.FRAGMENT_SHADER,fragmentShader]]) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      const compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+      if (compiled) gl.attachShader(program, shader);
+      gl.deleteShader(shader);
+      if (!compiled) { gl.deleteProgram(program); return null; }
+    }
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { gl.deleteProgram(program); return null; }
+    gl.useProgram(program);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const attr = gl.getAttribLocation(program,"position");
+    gl.enableVertexAttribArray(attr);
+    gl.vertexAttribPointer(attr,2,gl.FLOAT,false,0,0);
+    return Object.fromEntries(["shape[0]","power[0]","gain","lift","trail","resolution"]
+      .map(name => [name,gl.getUniformLocation(program,name)]));
+  }
+  let uniforms = createProgram();
+  field.addEventListener("webglcontextlost", event => { event.preventDefault(); uniforms = null; });
+  field.addEventListener("webglcontextrestored", () => { uniforms = createProgram(); });
+  const ctx = particleCanvas.getContext("2d");
+  const shapes = new Float32Array(20), powers = new Float32Array(5);
+  const fallbackColors = ["255,195,52","255,112,102","238,87,254","229,66,248","245,119,174"];
+  let randomState = 17513;
+  function random() {
+    randomState = (Math.imul(1664525, randomState) + 1013904223) >>> 0;
+    return randomState / 4294967296;
+  }
+  const dust = Array.from({length: 146}, () => ({
+    x: random(), phase: random(), life: 1.1 + random()*1.8, rise: .075 + random()*.19,
+    radius: .38 + random()*.86, drift: (random()-.5)*.022, brightness: .3 + random()*.55
+  }));
+  return function draw(elapsed) {
+    const time = elapsed + 1.4;
+    const lift = sweepAt(time);
+    const centerLag = (lift - sweepAt(time - .017)) * ease(lift / .6);
+    const trailingStretch = .95 * ease((lift - .23) / .74);
+    // As the wave rises its flanks draw inward around the middle of the dialog.
+    const horizontalScale = 1 - .035 * ease(lift / .105) - .225 * ease((lift - .075) / .84);
+    const gain = ease((time-1.74)/.13);
+    const index = Math.max(0,Math.min(keyframes.length-1,(time-1.83)/.15));
+    const left = keyframes[Math.floor(index)], right = keyframes[Math.ceil(index)];
+    const mix = index - Math.floor(index);
+    for (let i=0; i<5; i++) {
+      for (let j=0; j<5; j++) {
+        const k = i*5+j, v = left[k] + (right[k]-left[k])*mix;
+        if (j===4) powers[i]=v;
+        else shapes[i*4+j]=v;
+      }
+      const x = i * 4;
+      shapes[x] = .5 + (shapes[x] - .5) * horizontalScale;
+      shapes[x + 2] *= horizontalScale;
+    }
+    const width = effect.clientWidth, height = effect.clientHeight;
+    if (!width || !height) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelsX = Math.round(width*ratio), pixelsY = Math.round(height*ratio);
+    if (field.width!==pixelsX || field.height!==pixelsY) {
+      for (const canvas of [field,particleCanvas]) { canvas.width=pixelsX; canvas.height=pixelsY; }
+    }
+    const centerWeight = x => 1 - ease(Math.abs(x - shapes[0]) / .34);
+    if (uniforms) {
+      gl.viewport(0,0,pixelsX,pixelsY);
+      gl.uniform4fv(uniforms["shape[0]"],shapes);
+      gl.uniform1fv(uniforms["power[0]"],powers);
+      gl.uniform1f(uniforms.gain,gain);
+      gl.uniform1f(uniforms.lift,lift);
+      gl.uniform2f(uniforms.trail, centerLag, trailingStretch);
+      gl.uniform2f(uniforms.resolution,pixelsX,pixelsY);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+      field.style.background = "";
+    } else {
+      field.style.background = fallbackColors.map((rgb,i) => {
+        const ellipse = shapes.subarray(i*4,i*4+4);
+        const center = centerWeight(ellipse[0]);
+        const tail = ellipse[3] * trailingStretch * center;
+        const localLift = lift - centerLag * center;
+        return `radial-gradient(ellipse ${ellipse[2]*width*2}px ${(ellipse[3] + tail / 2)*height*2}px at ${ellipse[0]*100}% ${100*(1-localLift-ellipse[1]+tail/2)}%, rgba(${rgb},${clamp(powers[i]*gain)}) 0%, transparent 100%)`;
+      }).join(",");
+    }
+    if (!ctx) return;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    ctx.clearRect(0,0,width,height);
+    const visibility = ease((time-2.32)/.6)*(1-ease((time-5.86)/.15));
+    if (!visibility) return;
+    ctx.fillStyle = "#fffbee";
+    for (const speck of dust) {
+      const age = (elapsed/speck.life+speck.phase)%1;
+      const alpha = ease(age/.12)*(1-ease((age-.2)/.8));
+      ctx.globalAlpha = visibility*alpha*speck.brightness;
+      const x = (.5 + (speck.x + speck.drift * age - .5) * horizontalScale) * width;
+      const localLift = lift - centerLag * centerWeight(x / width);
+      const y = (1 - speck.rise * age - localLift) * height;
+      ctx.beginPath();
+      ctx.arc(x,y,speck.radius*width/456,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  };
+}
+
+
+const $ = selector => document.querySelector(selector);
+const scene = $(".scene");
+const viewport = $(".viewport");
+const dialog = $(".export-dialog");
+const glow = $(".visuals");
+const status = $(".status");
+const message = $(".message");
+const primary = $(".primary");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const draw = createGlow(glow, $(".field"), $(".particles"));
+const layers = [
+  [$(".header"), .91], [$(".details-bg"), .52], [$(".file-summary"), .68],
+  ...Array.from(document.querySelectorAll(".row"), (row, index) => [row, .54 - index * .10]),
+  [$(".actions"), .09]
+];
+
+function resizeScene() {
+  const w = scene.clientWidth, h = scene.clientHeight;
+  const compositionScale = Math.min(1, w / 960, h / 720);
+  const readableDialogScale = Math.max(compositionScale, 320 / 456);
+  const dialogScale = Math.min(readableDialogScale, (w - 24) / 456, (h - 26) / 474);
+  scene.style.setProperty("--stage-scale", compositionScale);
+  scene.style.setProperty("--dialog-scale", dialogScale);
+}
+new ResizeObserver(resizeScene).observe(scene);
+resizeScene();
+
+let request = 0, autoStart = 0, state = "ready", started = 0;
+function smooth(start, end, x) {
+  const t = Math.max(0, Math.min(1, (x - start) / (end - start)));
+  return t * t * (3 - 2 * t);
+}
+function content(complete) {
+  dialog.classList.toggle("success", complete);
+  $("#dialog-title").textContent = complete ? "导出完成" : "导出知识库归档";
+  $(".header p").textContent = complete ? "24 篇知识库文档已打包。" : "将选中的知识库文档打包为离线归档。";
+  $(".file-label").textContent = complete ? "已生成的离线归档" : "归档文件名";
+  $(".cancel").hidden = complete;
+  primary.textContent = complete ? "完成" : "开始导出";
+}
+function clearFilters() {
+  for (const [el] of layers) { el.style.removeProperty("filter"); el.style.removeProperty("opacity"); }
+}
+function stopPlayback() {
+  clearTimeout(autoStart);
+  cancelAnimationFrame(request);
+  request = 0;
+}
+function openExport(autoplay) {
+  stopPlayback();
+  state = "ready";
+  content(false);
+  clearFilters();
+  primary.disabled = false;
+  $(".cancel").disabled = false;
+  status.hidden = glow.hidden = true;
+  $(".replay").hidden = true;
+  $(".scrim").hidden = viewport.hidden = false;
+  viewport.classList.add("open");
+  if (autoplay) autoStart = setTimeout(startExport, 1400);
+  else primary.focus({preventScroll:true});
+}
+function closeExport() {
+  stopPlayback();
+  state = "closed";
+  viewport.classList.remove("open");
+  viewport.hidden = $(".scrim").hidden = true;
+  status.hidden = glow.hidden = true;
+  $(".replay").hidden = false;
+  $(".replay").focus({preventScroll:true});
+}
+
+function render(now) {
+  const t = (now - started) / 1000;
+  if (t >= 4.94) {
+    state = "done";
+    status.hidden = glow.hidden = true;
+    primary.disabled = false;
+    clearFilters();
+    content(true);
+    return;
+  }
+  if (t >= 4.07 && !dialog.classList.contains("success")) content(true);
+  const entrance = smooth(0, .68, t);
+  // The file summary sharpens from its footer up as the bright band passes each row.
+  const wave = smooth(4.09, 4.93, t) * 1.43 - .14;
+  for (const [el, y] of layers) {
+    const blur = entrance * (1 - smooth(y - .08, y + .33, wave));
+    el.style.filter = reducedMotion.matches ? "none" : `blur(${(8 * blur).toFixed(2)}px)`;
+    el.style.opacity = (1 - .64 * blur).toFixed(3);
+  }
+  const fade = smooth(.45, .83, t) * (1 - smooth(4.16, 4.49, t));
+  status.hidden = fade === 0;
+  status.style.opacity = fade;
+  status.style.filter = reducedMotion.matches ? "none" : `blur(${(1 - fade) * 3.5}px)`;
+  const text = t < 2.44 ? "正在整理知识库文档…" : "正在生成离线归档…";
+  if (message.textContent !== text) message.textContent = text;
+  glow.hidden = reducedMotion.matches;
+  if (!glow.hidden) draw(t);
+  request = requestAnimationFrame(render);
+}
+function startExport() {
+  if (state !== "ready") return;
+  stopPlayback();
+  state = "loading";
+  primary.disabled = $(".cancel").disabled = true;
+  glow.hidden = reducedMotion.matches;
+  started = performance.now();
+  render(started);
+}
+primary.onclick = () => state === "done" ? closeExport() : startExport();
+$(".cancel").onclick = $(".close").onclick = closeExport;
+$(".replay").onclick = () => openExport(false);
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && state !== "closed") closeExport();
+});
+openExport(true);
+</script>
+</body>
+</html>

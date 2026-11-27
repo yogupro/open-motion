@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>物理拖拽 Before / After 对比组件</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .ba-stage {
+      position: relative;
+      width: 100%;
+      height: 340px;
+      border-radius: 14px;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: ew-resize;
+      background: #0c1420;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .ba-stage.is-dragging {
+      cursor: grabbing;
+    }
+
+    .ba-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      will-change: transform;
+    }
+
+    .ba-layer-before {
+      will-change: clip-path, transform;
+    }
+
+    .ba-layer svg,
+    .ba-layer img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    /* Kinetic seam overlay */
+    .ba-seam-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 20;
+    }
+
+    /* Wall tension / impact glow */
+    .ba-edge-glow {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 44px;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 18;
+      will-change: opacity, transform;
+    }
+
+    .ba-edge-glow-left {
+      left: 0;
+      background: radial-gradient(ellipse at 0% 50%, rgba(56, 189, 248, 0.65) 0%, rgba(56, 189, 248, 0.16) 45%, transparent 78%);
+    }
+
+    .ba-edge-glow-right {
+      right: 0;
+      background: radial-gradient(ellipse at 100% 50%, rgba(251, 191, 36, 0.68) 0%, rgba(251, 191, 36, 0.16) 45%, transparent 78%);
+    }
+
+    /* Magnetic 50% notches */
+    .ba-notch {
+      position: absolute;
+      left: 50%;
+      width: 2px;
+      height: 8px;
+      margin-left: -1px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.36);
+      pointer-events: none;
+      z-index: 19;
+      transition: background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .ba-notch-top { top: 6px; }
+    .ba-notch-bottom { bottom: 6px; }
+
+    .ba-notch.is-lit {
+      background: #ffffff;
+      transform: scaleY(1.45);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+    }
+
+    /* Corner Before / After badges */
+    .ba-badge {
+      position: absolute;
+      top: 12px;
+      z-index: 22;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.94);
+      background: rgba(12, 16, 24, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    .ba-badge-before { left: 12px; }
+    .ba-badge-after { right: 12px; }
+
+    .ba-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    /* Physical floating handle */
+    .ba-handle-anchor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 30;
+      pointer-events: none;
+      will-change: transform;
+    }
+
+    .ba-handle {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      margin-left: -22px;
+      margin-top: -22px;
+      border-radius: 999px;
+      pointer-events: auto;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 0%, rgba(236, 242, 248, 0.88) 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.95);
+      box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.34),
+        0 2px 6px rgba(0, 0, 0, 0.22),
+        inset 0 1px 1px rgba(255, 255, 255, 1),
+        inset 0 -2px 4px rgba(15, 23, 42, 0.12);
+      color: #0f172a;
+      outline: none;
+      will-change: transform, box-shadow;
+    }
+
+    .ba-stage.is-dragging .ba-handle {
+      cursor: grabbing;
+    }
+
+    .ba-handle:focus-visible {
+      box-shadow:
+        0 0 0 3px rgba(56, 189, 248, 0.85),
+        0 10px 26px rgba(0, 0, 0, 0.38);
+    }
+
+    .ba-handle-ring {
+      position: absolute;
+      inset: -5px;
+      border-radius: 999px;
+      border: 1.5px solid rgba(255, 255, 255, 0.45);
+      opacity: 0;
+      transform: scale(0.86);
+      transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+
+    .ba-handle.is-active .ba-handle-ring {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+
+    .ba-chevrons {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      pointer-events: none;
+    }
+
+    .ba-chev {
+      display: block;
+      width: 11px;
+      height: 11px;
+      will-change: transform;
+    }
+
+    /* Floating live percentage readout pill attached to handle */
+    .ba-pct-pill {
+      position: absolute;
+      left: 0;
+      top: -40px;
+      transform: translateX(-50%) translateY(4px) scale(0.92);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      color: #ffffff;
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1), top 180ms ease;
+    }
+
+    .ba-pct-pill.is-below {
+      top: 30px;
+    }
+
+    .ba-pct-pill.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+
+    /* Custom image drawer overlay inside stage bottom */
+    .ba-upload-tray {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      z-index: 35;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: rgba(12, 16, 24, 0.84);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 12px;
+    }
+
+    .ba-upload-tray[hidden] {
+      display: none;
+    }
+
+    /* Compact segmented controls using semantic host tokens */
+    .seg-group {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px;
+      border-radius: 8px;
+      background: var(--card, rgba(128, 128, 128, 0.1));
+      border: 1px solid var(--card-border, rgba(128, 128, 128, 0.2));
+      gap: 2px;
+    }
+
+    .seg-btn {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted-foreground, #71717a);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.25;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 140ms ease, color 140ms ease;
+    }
+
+    .seg-btn:hover {
+      color: var(--foreground, #18181b);
+    }
+
+    .seg-btn[aria-pressed="true"] {
+      background: var(--primary, #10b981);
+      color: var(--primary-foreground, #ffffff);
+      font-weight: 600;
+    }
+
+    .ghost-btn {
+      appearance: none;
+      border: 1px solid var(--card-border, rgba(128, 128, 128, 0.24));
+      background: var(--card, transparent);
+      color: var(--foreground, #18181b);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.25;
+      padding: 3px 9px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: border-color 140ms ease, opacity 140ms ease;
+    }
+
+    .ghost-btn:hover {
+      border-color: var(--primary, #10b981);
+    }
+
+    .tray-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: background-color 140ms ease;
+    }
+
+    .tray-btn:hover {
+      background: rgba(255, 255, 255, 0.24);
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0">
+  <div class="py-1.5 space-y-2 select-none">
+    <!-- Top compact control strip -->
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="seg-group" role="group" aria-label="演示场景">
+        <button type="button" class="seg-btn" data-scene="arch" aria-pressed="true">建筑光影</button>
+        <button type="button" class="seg-btn" data-scene="grade" aria-pressed="false">电影调色</button>
+        <button type="button" class="seg-btn" data-scene="ui" aria-pressed="false">界面原型</button>
+      </div>
+
+      <div class="seg-group" role="group" aria-label="物理手感">
+        <button type="button" class="seg-btn" data-preset="elastic" aria-pressed="true">丝滑回弹</button>
+        <button type="button" class="seg-btn" data-preset="inertia" aria-pressed="false">沉重惯性</button>
+        <button type="button" class="seg-btn" data-preset="magnetic" aria-pressed="false">紧致磁吸</button>
+      </div>
+    </div>
+
+    <!-- Interactive Physics Before / After Stage -->
+    <div id="stage" class="ba-stage" aria-label="Before / After 物理拖拽对比画布">
+      <!-- Right / After full layer -->
+      <div id="layerAfter" class="ba-layer ba-layer-after"></div>
+
+      <!-- Left / Before dynamically Bézier-clipped layer -->
+      <div id="layerBefore" class="ba-layer ba-layer-before"></div>
+
+      <!-- Edge rubber-band & wall-collision tension glows -->
+      <div id="glowLeft" class="ba-edge-glow ba-edge-glow-left" aria-hidden="true"></div>
+      <div id="glowRight" class="ba-edge-glow ba-edge-glow-right" aria-hidden="true"></div>
+
+      <!-- Subtle center 50% magnetic notches -->
+      <div id="notchTop" class="ba-notch ba-notch-top" aria-hidden="true"></div>
+      <div id="notchBottom" class="ba-notch ba-notch-bottom" aria-hidden="true"></div>
+
+      <!-- Collision-aware Before / After labels -->
+      <div id="badgeBefore" class="ba-badge ba-badge-before" aria-hidden="true">
+        <span id="dotBefore" class="ba-badge-dot" style="background:#38bdf8"></span>
+        <span id="labelBefore">BEFORE · 蓝图线框</span>
+      </div>
+      <div id="badgeAfter" class="ba-badge ba-badge-after" aria-hidden="true">
+        <span id="dotAfter" class="ba-badge-dot" style="background:#fbbf24"></span>
+        <span id="labelAfter">AFTER · 暮光渲染</span>
+      </div>
+
+      <!-- Elastic curved divider SVG -->
+      <svg id="seamSvg" class="ba-seam-svg" aria-hidden="true">
+        <defs>
+          <filter id="seamGlowFilter" x="-40%" y="-10%" width="180%" height="120%">
+            <feGaussianBlur stdDeviation="4.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <linearGradient id="seamGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35" />
+            <stop id="seamStopMid" offset="50%" stop-color="#ffffff" stop-opacity="1" />
+            <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.35" />
+          </linearGradient>
+        </defs>
+        <path id="seamShadow" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="5" stroke-linecap="round" />
+        <path id="seamAura" fill="none" stroke="url(#seamGrad)" stroke-width="7" stroke-linecap="round" filter="url(#seamGlowFilter)" opacity="0" />
+        <path id="seamCore" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" />
+      </svg>
+
+      <!-- Physical floating handle + dynamic readout -->
+      <div id="handleAnchor" class="ba-handle-anchor">
+        <div id="pctPill" class="ba-pct-pill" aria-hidden="true">50%</div>
+        <div
+          id="handle"
+          class="ba-handle"
+          role="slider"
+          tabindex="0"
+          aria-label="对比分割滑块（支持拖拽、甩动与方向键）"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="50"
+          aria-valuetext="50%"
+        >
+          <span class="ba-handle-ring" aria-hidden="true"></span>
+          <span class="ba-chevrons" aria-hidden="true">
+            <svg id="chevLeft" class="ba-chev" viewBox="0 0 12 12" fill="none">
+              <path d="M7.8 2.2L4 6L7.8 9.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <svg id="chevRight" class="ba-chev" viewBox="0 0 12 12" fill="none">
+              <path d="M4.2 2.2L8 6L4.2 9.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      <!-- Optional custom image overlay tray (no layout jump) -->
+      <div id="uploadTray" class="ba-upload-tray" hidden>
+        <div class="flex items-center gap-2">
+          <label class="tray-btn">
+            选择 Before 图
+            <input id="inputBefore" type="file" accept="image/*" class="hidden" />
+          </label>
+          <label class="tray-btn">
+            选择 After 图
+            <input id="inputAfter" type="file" accept="image/*" class="hidden" />
+          </label>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnClearCustom" type="button" class="tray-btn">恢复内置场景</button>
+          <button id="btnCloseTray" type="button" class="tray-btn">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom live telemetry & actions strip -->
+    <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted-foreground)]">
+      <div class="font-mono tabular-nums flex items-center gap-3">
+        <span>分割 <strong id="telPos" class="text-[var(--foreground)] font-semibold">50.0%</strong></span>
+        <span>速度 <strong id="telVel" class="text-[var(--foreground)] font-semibold">0.00</strong></span>
+        <span>橡皮筋拉伸 <strong id="telBow" class="text-[var(--foreground)] font-semibold">0.0px</strong></span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button id="btnCenter" type="button" class="ghost-btn" title="双击画布也可弹性归中">归中 50%</button>
+        <button id="btnFlickDemo" type="button" class="ghost-btn" title="演示一次惯性甩动与撞墙回弹">惯性甩动</button>
+        <button id="btnCustom" type="button" class="ghost-btn">自定义图片</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // =====================================================================
+      // 1. Pixel-Aligned Dual-Layer Vector Scenes (Zero External Dependencies)
+      // =====================================================================
+      const SCENES = {
+        arch: {
+          beforeLabel: 'BEFORE · 蓝图线框',
+          afterLabel: 'AFTER · 暮光渲染',
+          beforeDot: '#38bdf8',
+          afterDot: '#fbbf24',
+          beforeSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="bp-bg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0a1628"/>
+                  <stop offset="100%" stop-color="#0f2544"/>
+                </linearGradient>
+                <pattern id="bp-grid-sm" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(56,189,248,0.09)" stroke-width="0.7"/>
+                </pattern>
+                <pattern id="bp-grid-lg" width="100" height="100" patternUnits="userSpaceOnUse">
+                  <rect width="100" height="100" fill="url(#bp-grid-sm)"/>
+                  <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+                </pattern>
+              </defs>
+              <rect width="800" height="420" fill="url(#bp-bg)"/>
+              <rect width="800" height="420" fill="url(#bp-grid-lg)"/>
+
+              <!-- Sun construction orbit & crosshairs -->
+              <circle cx="590" cy="116" r="44" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4 4"/>
+              <circle cx="590" cy="116" r="68" fill="none" stroke="rgba(56,189,248,0.3)" stroke-width="0.9" stroke-dasharray="2 6"/>
+              <line x1="590" y1="34" x2="590" y2="196" stroke="rgba(56,189,248,0.35)" stroke-width="0.8"/>
+              <line x1="510" y1="116" x2="670" y2="116" stroke="rgba(56,189,248,0.35)" stroke-width="0.8"/>
+              <text x="642" y="84" fill="#7dd3fc" font-family="ui-monospace,monospace" font-size="11">AZ 248.4°</text>
+              <text x="642" y="98" fill="rgba(125,211,252,0.7)" font-family="ui-monospace,monospace" font-size="10">R = 44.0u</text>
+
+              <!-- Mountain wireframe contours -->
+              <path d="M 0 260 L 118 176 L 236 226 L 352 148 L 486 222 L 620 162 L 732 214 L 800 184 L 800 286 L 0 286 Z"
+                    fill="rgba(56,189,248,0.06)" stroke="#38bdf8" stroke-width="1.15" stroke-linejoin="round"/>
+              <path d="M 118 176 L 160 286 M 352 148 L 318 286 M 352 148 L 414 286 M 620 162 L 584 286"
+                    stroke="rgba(56,189,248,0.28)" stroke-width="0.9" stroke-dasharray="3 4"/>
+
+              <!-- Horizon baseline -->
+              <line x1="0" y1="286" x2="800" y2="286" stroke="#7dd3fc" stroke-width="1.3"/>
+
+              <!-- Architectural Pavilion Wireframe (exact geometry shared with After) -->
+              <!-- Concrete cliff plinth -->
+              <polygon points="146,286 648,286 626,316 174,316" fill="rgba(56,189,248,0.1)" stroke="#7dd3fc" stroke-width="1.4"/>
+              <!-- Main glass pavilion box -->
+              <rect x="206" y="182" width="368" height="104" fill="rgba(14,165,233,0.08)" stroke="#bae6fd" stroke-width="1.5"/>
+              <!-- Interior structural bays -->
+              <line x1="278" y1="182" x2="278" y2="286" stroke="#38bdf8" stroke-width="1.1"/>
+              <line x1="352" y1="182" x2="352" y2="286" stroke="#38bdf8" stroke-width="1.1"/>
+              <line x1="426" y1="182" x2="426" y2="286" stroke="#38bdf8" stroke-width="1.1"/>
+              <line x1="500" y1="182" x2="500" y2="286" stroke="#38bdf8" stroke-width="1.1"/>
+              <!-- Timber louver hatch on left wing -->
+              <g stroke="rgba(125,211,252,0.5)" stroke-width="1">
+                <line x1="218" y1="182" x2="218" y2="286"/><line x1="230" y1="182" x2="230" y2="286"/>
+                <line x1="242" y1="182" x2="242" y2="286"/><line x1="254" y1="182" x2="254" y2="286"/>
+                <line x1="266" y1="182" x2="266" y2="286"/>
+              </g>
+              <!-- Cantilever roof slab -->
+              <polygon points="154,162 632,162 618,182 170,182" fill="rgba(56,189,248,0.16)" stroke="#e0f2fe" stroke-width="1.8"/>
+              <!-- Upper clerestory volume -->
+              <rect x="330" y="124" width="192" height="38" fill="rgba(56,189,248,0.1)" stroke="#bae6fd" stroke-width="1.4"/>
+              <line x1="394" y1="124" x2="394" y2="162" stroke="#38bdf8" stroke-width="1"/>
+              <line x1="458" y1="124" x2="458" y2="162" stroke="#38bdf8" stroke-width="1"/>
+              <!-- Interior furniture CAD outlines -->
+              <rect x="302" y="252" width="88" height="34" fill="none" stroke="#7dd3fc" stroke-width="1" stroke-dasharray="3 2"/>
+              <circle cx="464" cy="216" r="11" fill="none" stroke="#bae6fd" stroke-width="1.2"/>
+              <line x1="464" y1="182" x2="464" y2="205" stroke="#7dd3fc" stroke-width="1"/>
+
+              <!-- CAD Dimension callouts -->
+              <g stroke="#38bdf8" stroke-width="1" fill="#7dd3fc" font-family="ui-monospace,monospace" font-size="11">
+                <line x1="154" y1="142" x2="632" y2="142" stroke-dasharray="2 2"/>
+                <line x1="154" y1="136" x2="154" y2="158"/>
+                <line x1="632" y1="136" x2="632" y2="158"/>
+                <text x="166" y="136">SPAN 24.00m · CANTILEVER 4.8m</text>
+
+                <line x1="126" y1="162" x2="126" y2="286"/>
+                <line x1="120" y1="162" x2="148" y2="162"/>
+                <line x1="120" y1="286" x2="148" y2="286"/>
+                <text x="46" y="228">EL +6.2m</text>
+              </g>
+
+              <!-- Wireframe water reflection lines -->
+              <g stroke="rgba(56,189,248,0.28)" stroke-width="1" stroke-dasharray="8 6">
+                <line x1="166" y1="334" x2="628" y2="334"/>
+                <line x1="208" y1="354" x2="574" y2="354"/>
+                <line x1="252" y1="374" x2="532" y2="374"/>
+                <line x1="306" y1="394" x2="486" y2="394"/>
+              </g>
+              <text x="26" y="396" fill="rgba(125,211,252,0.55)" font-family="ui-monospace,monospace" font-size="11">CAD ELEVATION // 01-SOUTH · GRID 1:100</text>
+            </svg>
+          `,
+          afterSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="gh-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#171934"/>
+                  <stop offset="38%" stop-color="#482f57"/>
+                  <stop offset="72%" stop-color="#c9684e"/>
+                  <stop offset="100%" stop-color="#f6bd60"/>
+                </linearGradient>
+                <radialGradient id="gh-sun-glow" cx="590" cy="116" r="190" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#fff4c4" stop-opacity="0.95"/>
+                  <stop offset="28%" stop-color="#f9a84d" stop-opacity="0.58"/>
+                  <stop offset="68%" stop-color="#d95f48" stop-opacity="0.16"/>
+                  <stop offset="100%" stop-color="#d95f48" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="gh-mtn-far" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#533758"/>
+                  <stop offset="100%" stop-color="#2c243c"/>
+                </linearGradient>
+                <linearGradient id="gh-water" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3c2b44"/>
+                  <stop offset="45%" stop-color="#221d33"/>
+                  <stop offset="100%" stop-color="#111221"/>
+                </linearGradient>
+                <linearGradient id="gh-interior" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ffb85c"/>
+                  <stop offset="55%" stop-color="#e37c3d"/>
+                  <stop offset="100%" stop-color="#6c3430"/>
+                </linearGradient>
+                <linearGradient id="gh-glass-sheen" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
+                  <stop offset="32%" stop-color="#ffffff" stop-opacity="0.06"/>
+                  <stop offset="62%" stop-color="#fde68a" stop-opacity="0.16"/>
+                  <stop offset="100%" stop-color="#0f172a" stop-opacity="0.24"/>
+                </linearGradient>
+                <linearGradient id="gh-concrete" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#d9cfc7"/>
+                  <stop offset="65%" stop-color="#f5e6d8"/>
+                  <stop offset="100%" stop-color="#fbcf9e"/>
+                </linearGradient>
+                <linearGradient id="gh-lamp-glow" x1="0.5" y1="0" x2="0.5" y2="1">
+                  <stop offset="0%" stop-color="#fff8d6" stop-opacity="0.9"/>
+                  <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Twilight Golden-Hour Sky -->
+              <rect width="800" height="286" fill="url(#gh-sky)"/>
+              <rect width="800" height="286" fill="url(#gh-sun-glow)"/>
+
+              <!-- Radiant Setting Sun -->
+              <circle cx="590" cy="116" r="44" fill="#fff7d6"/>
+              <circle cx="590" cy="116" r="54" fill="#fde68a" opacity="0.28"/>
+
+              <!-- Mountain ridges (exact match to wireframe) -->
+              <path d="M 0 260 L 118 176 L 236 226 L 352 148 L 486 222 L 620 162 L 732 214 L 800 184 L 800 286 L 0 286 Z"
+                    fill="url(#gh-mtn-far)"/>
+              <!-- Warm sunlit mountain facet highlights -->
+              <polygon points="352,148 486,222 414,286 318,286" fill="#7c4760" opacity="0.55"/>
+              <polygon points="620,162 732,214 670,286 584,286" fill="#9a5659" opacity="0.55"/>
+              <polygon points="118,176 236,226 160,286 80,286" fill="#643d5a" opacity="0.45"/>
+
+              <!-- Calm Water Surface -->
+              <rect y="286" width="800" height="134" fill="url(#gh-water)"/>
+              <!-- Warm sun reflection path on water -->
+              <ellipse cx="590" cy="306" rx="115" ry="18" fill="#fbbf24" opacity="0.24"/>
+              <ellipse cx="590" cy="340" rx="82" ry="10" fill="#f59e0b" opacity="0.16"/>
+              <ellipse cx="390" cy="340" rx="170" ry="26" fill="#f59e0b" opacity="0.18"/>
+              <!-- Crisp water ripple highlights -->
+              <g stroke-linecap="round">
+                <line x1="166" y1="334" x2="628" y2="334" stroke="#fde68a" stroke-opacity="0.22" stroke-width="2"/>
+                <line x1="208" y1="354" x2="574" y2="354" stroke="#fbbf24" stroke-opacity="0.18" stroke-width="1.8"/>
+                <line x1="252" y1="374" x2="532" y2="374" stroke="#f59e0b" stroke-opacity="0.15" stroke-width="1.5"/>
+                <line x1="306" y1="394" x2="486" y2="394" stroke="#fde68a" stroke-opacity="0.14" stroke-width="1.4"/>
+              </g>
+
+              <!-- Concrete Plinth -->
+              <polygon points="146,286 648,286 626,316 174,316" fill="#2b2633"/>
+              <polygon points="146,286 648,286 642,293 152,293" fill="#e8c39e" opacity="0.8"/>
+
+              <!-- Warm Illuminated Glass Pavilion -->
+              <rect x="206" y="182" width="368" height="104" fill="url(#gh-interior)"/>
+              <!-- Interior furniture & warm pendant lamp -->
+              <polygon points="434,216 494,216 516,286 412,286" fill="url(#gh-lamp-glow)" opacity="0.7"/>
+              <rect x="302" y="252" width="88" height="34" rx="4" fill="#3a232b"/>
+              <rect x="306" y="256" width="80" height="8" rx="2" fill="#5e373a"/>
+              <line x1="464" y1="182" x2="464" y2="205" stroke="#2c1b22" stroke-width="1.8"/>
+              <circle cx="464" cy="216" r="11" fill="#fff7d6"/>
+              <circle cx="464" cy="216" r="22" fill="#fde68a" opacity="0.35"/>
+
+              <!-- Glass reflection overlay -->
+              <rect x="206" y="182" width="368" height="104" fill="url(#gh-glass-sheen)"/>
+
+              <!-- Timber Louvers on left wing -->
+              <g fill="#5b3428" opacity="0.88">
+                <rect x="216" y="182" width="5" height="104"/><rect x="228" y="182" width="5" height="104"/>
+                <rect x="240" y="182" width="5" height="104"/><rect x="252" y="182" width="5" height="104"/>
+                <rect x="264" y="182" width="5" height="104"/>
+              </g>
+              <!-- Dark bronze glass mullions -->
+              <g stroke="#241c27" stroke-width="2.4">
+                <rect x="206" y="182" width="368" height="104" fill="none"/>
+                <line x1="278" y1="182" x2="278" y2="286"/>
+                <line x1="352" y1="182" x2="352" y2="286"/>
+                <line x1="426" y1="182" x2="426" y2="286"/>
+                <line x1="500" y1="182" x2="500" y2="286"/>
+              </g>
+
+              <!-- Upper Clerestory Volume -->
+              <rect x="330" y="124" width="192" height="38" fill="#5b3a4a"/>
+              <rect x="336" y="129" width="180" height="28" fill="#f5a65b" opacity="0.62"/>
+              <line x1="394" y1="124" x2="394" y2="162" stroke="#2a1f2d" stroke-width="2.2"/>
+              <line x1="458" y1="124" x2="458" y2="162" stroke="#2a1f2d" stroke-width="2.2"/>
+              <rect x="328" y="121" width="196" height="5" fill="#f2d5b8"/>
+
+              <!-- Cantilevered Architectural Concrete Roof -->
+              <polygon points="154,162 632,162 618,182 170,182" fill="url(#gh-concrete)"/>
+              <polygon points="168,176 620,176 618,182 170,182" fill="#8b655c" opacity="0.72"/>
+              <line x1="154" y1="162" x2="632" y2="162" stroke="#fff7ed" stroke-width="1.5" opacity="0.85"/>
+            </svg>
+          `
+        },
+
+        grade: {
+          beforeLabel: 'BEFORE · S-LOG3 灰片',
+          afterLabel: 'AFTER · 电影调色',
+          beforeDot: '#94a3b8',
+          afterDot: '#2dd4bf',
+          beforeSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="raw-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#697178"/>
+                  <stop offset="55%" stop-color="#7c8389"/>
+                  <stop offset="100%" stop-color="#90969a"/>
+                </linearGradient>
+                <linearGradient id="raw-sea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#6f767c"/>
+                  <stop offset="100%" stop-color="#5d6469"/>
+                </linearGradient>
+              </defs>
+              <rect width="800" height="270" fill="url(#raw-sky)"/>
+              <!-- Flat clouds -->
+              <path d="M 60 112 Q 140 76 230 102 Q 290 88 354 114 L 60 114 Z" fill="#888f94" opacity="0.7"/>
+              <path d="M 450 92 Q 540 62 636 86 Q 704 72 768 98 L 450 98 Z" fill="#8c9297" opacity="0.65"/>
+              <!-- Weak sun -->
+              <circle cx="242" cy="214" r="34" fill="#a2a7aa"/>
+              <!-- Flat sea -->
+              <rect y="270" width="800" height="150" fill="url(#raw-sea)"/>
+              <!-- Coastal cliff -->
+              <path d="M 442 270 L 534 198 L 620 192 L 728 232 L 800 226 L 800 420 L 386 420 L 424 316 Z" fill="#596065"/>
+              <!-- Lighthouse tower -->
+              <polygon points="554,196 588,196 582,92 560,92" fill="#8e9498"/>
+              <rect x="556" y="132" width="30" height="16" fill="#71777c"/>
+              <rect x="554" y="164" width="34" height="16" fill="#71777c"/>
+              <rect x="554" y="80" width="34" height="14" rx="2" fill="#63696e"/>
+              <polygon points="552,80 590,80 571,62" fill="#5c6267"/>
+              <rect x="562" y="83" width="18" height="9" fill="#9ea3a6"/>
+              <!-- Faint beam -->
+              <polygon points="562,88 0,24 0,164" fill="#a8adaf" opacity="0.14"/>
+              <!-- Flat water lines -->
+              <g stroke="#858c91" stroke-width="2" stroke-linecap="round" opacity="0.55">
+                <line x1="88" y1="306" x2="352" y2="306"/>
+                <line x1="138" y1="334" x2="322" y2="334"/>
+                <line x1="176" y1="364" x2="294" y2="364"/>
+              </g>
+              <!-- Viewfinder HUD -->
+              <g stroke="rgba(255,255,255,0.34)" stroke-width="1" fill="none">
+                <path d="M 24 44 V 24 H 44"/>
+                <path d="M 756 24 H 776 V 44"/>
+                <path d="M 24 376 V 396 H 44"/>
+                <path d="M 756 396 H 776 V 376"/>
+              </g>
+              <text x="36" y="388" fill="rgba(255,255,255,0.68)" font-family="ui-monospace,monospace" font-size="11">ISO 800 · S-LOG3 · 12-BIT FLAT RAW</text>
+            </svg>
+          `,
+          afterSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="cg-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#05131f"/>
+                  <stop offset="46%" stop-color="#0d3247"/>
+                  <stop offset="82%" stop-color="#1e6070"/>
+                  <stop offset="100%" stop-color="#e88d4f"/>
+                </linearGradient>
+                <radialGradient id="cg-horizon" cx="242" cy="214" r="220" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#fff0c2" stop-opacity="0.95"/>
+                  <stop offset="28%" stop-color="#ff8c42" stop-opacity="0.62"/>
+                  <stop offset="68%" stop-color="#c2410c" stop-opacity="0.16"/>
+                  <stop offset="100%" stop-color="#0d3247" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="cg-sea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0f3c4c"/>
+                  <stop offset="48%" stop-color="#082230"/>
+                  <stop offset="100%" stop-color="#041019"/>
+                </linearGradient>
+                <linearGradient id="cg-beam" x1="1" y1="0.5" x2="0" y2="0.5">
+                  <stop offset="0%" stop-color="#fef08a" stop-opacity="0.88"/>
+                  <stop offset="35%" stop-color="#fbbf24" stop-opacity="0.34"/>
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <rect width="800" height="270" fill="url(#cg-sky)"/>
+              <rect width="800" height="270" fill="url(#cg-horizon)"/>
+              <!-- Crisp stars -->
+              <g fill="#e0f2fe" opacity="0.8">
+                <circle cx="110" cy="48" r="1.3"/><circle cx="196" cy="34" r="1"/><circle cx="318" cy="56" r="1.4"/>
+                <circle cx="426" cy="42" r="1.1"/><circle cx="672" cy="44" r="1.5"/><circle cx="738" cy="68" r="1"/>
+              </g>
+              <!-- Dramatic backlit clouds -->
+              <path d="M 60 112 Q 140 76 230 102 Q 290 88 354 114 L 60 114 Z" fill="#134256" stroke="#f59e0b" stroke-opacity="0.35" stroke-width="1"/>
+              <path d="M 450 92 Q 540 62 636 86 Q 704 72 768 98 L 450 98 Z" fill="#0d2f42" stroke="#38bdf8" stroke-opacity="0.3" stroke-width="1"/>
+              <!-- Vivid amber sun -->
+              <circle cx="242" cy="214" r="34" fill="#fff7d6"/>
+              <!-- Deep teal sea -->
+              <rect y="270" width="800" height="150" fill="url(#cg-sea)"/>
+              <ellipse cx="242" cy="296" rx="140" ry="20" fill="#ff9e44" opacity="0.38"/>
+              <ellipse cx="242" cy="340" rx="92" ry="12" fill="#f59e0b" opacity="0.22"/>
+              <!-- High-contrast cliff silhouette with amber rim -->
+              <path d="M 442 270 L 534 198 L 620 192 L 728 232 L 800 226 L 800 420 L 386 420 L 424 316 Z" fill="#071520"/>
+              <path d="M 442 270 L 534 198 L 620 192" fill="none" stroke="#fb923c" stroke-opacity="0.55" stroke-width="2"/>
+              <!-- Lighthouse -->
+              <polygon points="554,196 588,196 582,92 560,92" fill="#e2eef4"/>
+              <polygon points="571,196 588,196 582,92 571,92" fill="#16384a" opacity="0.52"/>
+              <rect x="556" y="132" width="30" height="16" fill="#dc2626"/>
+              <rect x="554" y="164" width="34" height="16" fill="#dc2626"/>
+              <rect x="554" y="80" width="34" height="14" rx="2" fill="#0f2938"/>
+              <polygon points="552,80 590,80 571,62" fill="#0b1f2c"/>
+              <rect x="562" y="83" width="18" height="9" fill="#fef08a"/>
+              <!-- Luminous volumetric lighthouse beam -->
+              <polygon points="562,88 0,24 0,164" fill="url(#cg-beam)"/>
+              <!-- Specular sea ripples -->
+              <g stroke-linecap="round">
+                <line x1="88" y1="306" x2="352" y2="306" stroke="#fde68a" stroke-opacity="0.62" stroke-width="2.4"/>
+                <line x1="138" y1="334" x2="322" y2="334" stroke="#fb923c" stroke-opacity="0.48" stroke-width="2"/>
+                <line x1="176" y1="364" x2="294" y2="364" stroke="#38bdf8" stroke-opacity="0.34" stroke-width="1.8"/>
+              </g>
+              <text x="36" y="388" fill="rgba(254,240,138,0.85)" font-family="ui-monospace,monospace" font-size="11">LUT · TEAL &amp; AMBER 2383 · GRADED</text>
+            </svg>
+          `
+        },
+
+        ui: {
+          beforeLabel: 'BEFORE · 低保真线框',
+          afterLabel: 'AFTER · 玻璃拟态成品',
+          beforeDot: '#a1a1aa',
+          afterDot: '#10b981',
+          beforeSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="ui-dot" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="10" cy="10" r="1" fill="#d4d4d8"/>
+                </pattern>
+              </defs>
+              <rect width="800" height="420" fill="#f4f4f5"/>
+              <rect width="800" height="420" fill="url(#ui-dot)"/>
+
+              <!-- Outer card wireframe -->
+              <rect x="96" y="54" width="608" height="312" rx="20" fill="#ffffff" stroke="#a1a1aa" stroke-width="1.5" stroke-dasharray="6 4"/>
+              <!-- Header bar -->
+              <rect x="128" y="84" width="164" height="20" rx="6" fill="#e4e4e7" stroke="#a1a1aa" stroke-width="1"/>
+              <rect x="128" y="112" width="112" height="12" rx="4" fill="#f4f4f5" stroke="#d4d4d8" stroke-width="1"/>
+              <rect x="572" y="84" width="100" height="28" rx="14" fill="none" stroke="#a1a1aa" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+              <!-- 3 KPI skeleton cards -->
+              <g fill="#fafafa" stroke="#a1a1aa" stroke-width="1.2">
+                <rect x="128" y="146" width="172" height="72" rx="12"/>
+                <rect x="314" y="146" width="172" height="72" rx="12"/>
+                <rect x="500" y="146" width="172" height="72" rx="12"/>
+              </g>
+              <g fill="#e4e4e7">
+                <rect x="144" y="162" width="64" height="10" rx="3"/>
+                <rect x="144" y="182" width="96" height="20" rx="5"/>
+                <rect x="330" y="162" width="70" height="10" rx="3"/>
+                <rect x="330" y="182" width="88" height="20" rx="5"/>
+                <rect x="516" y="162" width="60" height="10" rx="3"/>
+                <rect x="516" y="182" width="94" height="20" rx="5"/>
+              </g>
+
+              <!-- Chart box skeleton -->
+              <rect x="128" y="234" width="544" height="104" rx="14" fill="#fafafa" stroke="#a1a1aa" stroke-width="1.2" stroke-dasharray="4 3"/>
+              <line x1="152" y1="268" x2="648" y2="268" stroke="#e4e4e7" stroke-width="1"/>
+              <line x1="152" y1="296" x2="648" y2="296" stroke="#e4e4e7" stroke-width="1"/>
+              <line x1="152" y1="322" x2="648" y2="322" stroke="#e4e4e7" stroke-width="1"/>
+              <path d="M 152 318 C 210 314, 240 286, 298 292 C 354 298, 388 260, 448 266 C 508 272, 548 248, 648 250"
+                    fill="none" stroke="#71717a" stroke-width="2" stroke-dasharray="5 4"/>
+              <circle cx="448" cy="266" r="5" fill="#ffffff" stroke="#71717a" stroke-width="1.8"/>
+
+              <!-- Redline spacing markers -->
+              <g stroke="#ef4444" stroke-width="1" fill="#ef4444" font-family="ui-monospace,monospace" font-size="10">
+                <line x1="96" y1="382" x2="128" y2="382"/>
+                <text x="98" y="396">32px</text>
+                <line x1="300" y1="138" x2="314" y2="138"/>
+                <text x="296" y="133">14px</text>
+              </g>
+            </svg>
+          `,
+          afterSvg: `
+            <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="ui-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#090d16"/>
+                  <stop offset="50%" stop-color="#0f172a"/>
+                  <stop offset="100%" stop-color="#081c24"/>
+                </linearGradient>
+                <radialGradient id="ui-orb1" cx="200" cy="90" r="240" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.28"/>
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="ui-orb2" cx="620" cy="320" r="240" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.24"/>
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="ui-line" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#38bdf8"/>
+                  <stop offset="55%" stop-color="#10b981"/>
+                  <stop offset="100%" stop-color="#a7f3d0"/>
+                </linearGradient>
+                <linearGradient id="ui-area" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.38"/>
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <rect width="800" height="420" fill="url(#ui-bg)"/>
+              <rect width="800" height="420" fill="url(#ui-orb1)"/>
+              <rect width="800" height="420" fill="url(#ui-orb2)"/>
+
+              <!-- Glassmorphic dashboard card -->
+              <rect x="96" y="54" width="608" height="312" rx="20" fill="rgba(15,23,42,0.72)" stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
+              <line x1="126" y1="55" x2="674" y2="55" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+              <!-- Header text & live pill -->
+              <text x="128" y="100" fill="#f8fafc" font-size="18" font-weight="700">Motion Engine Telemetry</text>
+              <text x="128" y="122" fill="#94a3b8" font-size="12">Analytical Spring · 120Hz Compositor</text>
+              <rect x="572" y="84" width="100" height="28" rx="14" fill="rgba(16,185,129,0.16)" stroke="rgba(52,211,153,0.45)" stroke-width="1"/>
+              <circle cx="590" cy="98" r="4" fill="#34d399"/>
+              <text x="601" y="102" fill="#6ee7b7" font-size="12" font-weight="600">LIVE 60fps</text>
+
+              <!-- 3 KPI Glass Cards -->
+              <g>
+                <rect x="128" y="146" width="172" height="72" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
+                <text x="144" y="170" fill="#94a3b8" font-size="11">FRAME TIME</text>
+                <text x="144" y="201" fill="#f8fafc" font-size="22" font-weight="700" font-family="ui-monospace,monospace">1.4 ms</text>
+                <text x="234" y="200" fill="#34d399" font-size="11" font-weight="600">-68%</text>
+
+                <rect x="314" y="146" width="172" height="72" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
+                <text x="330" y="170" fill="#94a3b8" font-size="11">DAMPING ζ</text>
+                <text x="330" y="201" fill="#f8fafc" font-size="22" font-weight="700" font-family="ui-monospace,monospace">0.32</text>
+                <text x="412" y="200" fill="#38bdf8" font-size="11" font-weight="600">SPRING</text>
+
+                <rect x="500" y="146" width="172" height="72" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
+                <text x="516" y="170" fill="#94a3b8" font-size="11">REFLOWS</text>
+                <text x="516" y="201" fill="#f8fafc" font-size="22" font-weight="700" font-family="ui-monospace,monospace">0 / s</text>
+                <text x="606" y="200" fill="#a7f3d0" font-size="11" font-weight="600">GPU</text>
+              </g>
+
+              <!-- Luminous Chart Card -->
+              <rect x="128" y="234" width="544" height="104" rx="14" fill="rgba(2,6,23,0.45)" stroke="rgba(255,255,255,0.09)"/>
+              <line x1="152" y1="268" x2="648" y2="268" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>
+              <line x1="152" y1="296" x2="648" y2="296" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>
+              <line x1="152" y1="322" x2="648" y2="322" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>
+              <path d="M 152 318 C 210 314, 240 286, 298 292 C 354 298, 388 260, 448 266 C 508 272, 548 248, 648 250 L 648 334 L 152 334 Z"
+                    fill="url(#ui-area)"/>
+              <path d="M 152 318 C 210 314, 240 286, 298 292 C 354 298, 388 260, 448 266 C 508 272, 548 248, 648 250"
+                    fill="none" stroke="url(#ui-line)" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="448" cy="266" r="10" fill="#10b981" opacity="0.28"/>
+              <circle cx="448" cy="266" r="5" fill="#ecfdf5" stroke="#10b981" stroke-width="2.2"/>
+            </svg>
+          `
+        }
+      };
+
+      // =====================================================================
+      // 2. Physics Feel Presets (Two-Body Model: Monotonic Rail + Elastic Band)
+      // =====================================================================
+      const PRESETS = {
+        elastic: {
+          dragOmega: 54,
+          dragZeta: 0.96,
+          railFollow: 12.0,
+          bandOmega: 23.0,
+          bandZeta: 0.28,
+          jumpRailOmega: 17.5,
+          jumpMidOmega: 19.0,
+          jumpMidZeta: 0.50,
+          friction: 4.8,
+          restitution: 0.42,
+          bowMax: 34,
+          releaseBias: 0.45,
+          detentStrength: 0.025,
+          detentVelMax: 0.32,
+          rubberLimit: 0.042
+        },
+        inertia: {
+          dragOmega: 34,
+          dragZeta: 0.88,
+          railFollow: 7.5,
+          bandOmega: 17.5,
+          bandZeta: 0.22,
+          jumpRailOmega: 13.0,
+          jumpMidOmega: 14.8,
+          jumpMidZeta: 0.40,
+          friction: 2.4,
+          restitution: 0.55,
+          bowMax: 44,
+          releaseBias: 0.40,
+          detentStrength: 0,
+          detentVelMax: 0,
+          rubberLimit: 0.055
+        },
+        magnetic: {
+          dragOmega: 68,
+          dragZeta: 0.98,
+          railFollow: 19.0,
+          bandOmega: 28.0,
+          bandZeta: 0.42,
+          jumpRailOmega: 22.0,
+          jumpMidOmega: 23.5,
+          jumpMidZeta: 0.64,
+          friction: 7.4,
+          restitution: 0.24,
+          bowMax: 20,
+          releaseBias: 0.55,
+          detentStrength: 0.068,
+          detentVelMax: 0.85,
+          rubberLimit: 0.028
+        }
+      };
+
+      // =====================================================================
+      // 3. Analytical Closed-Form Damped Harmonic Oscillator (Frame-Rate Free)
+      // =====================================================================
+      function stepSpring(state, target, omega, zeta, dt) {
+        const u0 = state.x - target;
+        const v0 = state.v;
+        if (Math.abs(u0) < 1e-6 && Math.abs(v0) < 1e-6) {
+          state.x = target;
+          state.v = 0;
+          return;
+        }
+        if (zeta < 0.9995) {
+          // Underdamped
+          const wd = omega * Math.sqrt(1 - zeta * zeta);
+          const decay = Math.exp(-zeta * omega * dt);
+          const cos = Math.cos(wd * dt);
+          const sin = Math.sin(wd * dt);
+          const A = u0;
+          const B = (v0 + zeta * omega * u0) / wd;
+          state.x = target + decay * (A * cos + B * sin);
+          state.v = decay * ((wd * B - zeta * omega * A) * cos - (wd * A + zeta * omega * B) * sin);
+        } else if (zeta <= 1.0005) {
+          // Critically damped
+          const decay = Math.exp(-omega * dt);
+          const A = u0;
+          const B = v0 + omega * u0;
+          state.x = target + decay * (A + B * dt);
+          state.v = decay * (B - omega * (A + B * dt));
+        } else {
+          // Overdamped
+          const gamma = omega * Math.sqrt(zeta * zeta - 1);
+          const r1 = -zeta * omega + gamma;
+          const r2 = -zeta * omega - gamma;
+          const c1 = (v0 - r2 * u0) / (2 * gamma);
+          const c2 = u0 - c1;
+          const e1 = Math.exp(r1 * dt);
+          const e2 = Math.exp(r2 * dt);
+          state.x = target + c1 * e1 + c2 * e2;
+          state.v = c1 * r1 * e1 + c2 * r2 * e2;
+        }
+      }
+
+      // Strictly monotonic critically-damped step: rail anchors NEVER overshoot or wobble
+      function stepRailMonotonic(state, target, omega, dt) {
+        const u0 = state.x - target;
+        if (Math.abs(u0) < 1e-5) {
+          state.x = target;
+          state.v = 0;
+          return;
+        }
+        // Prevent any incoming velocity from pushing past target
+        if (u0 * state.v < 0) {
+          const maxToward = omega * Math.abs(u0);
+          if (Math.abs(state.v) > maxToward) {
+            state.v = -Math.sign(u0) * maxToward;
+          }
+        } else if (u0 * state.v > 0) {
+          state.v = 0;
+        }
+        stepSpring(state, target, omega, 1.0, dt);
+        // Hard monotonicity invariant: never cross target
+        if ((state.x - target) * u0 <= 0) {
+          state.x = target;
+          state.v = 0;
+        }
+      }
+
+      const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+      const smoothstep = (e0, e1, x) => {
+        const t = clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - 2 * t);
+      };
+
+      function rubberBand(rawX, limit) {
+        if (rawX < 0) {
+          const d = -rawX;
+          return -((0.48 * d * limit) / (0.48 * d + limit));
+        }
+        if (rawX > 1) {
+          const d = rawX - 1;
+          return 1 + (0.48 * d * limit) / (0.48 * d + limit);
+        }
+        return rawX;
+      }
+
+      // =====================================================================
+      // 4. DOM References & Component State
+      // =====================================================================
+      const stage = document.getElementById('stage');
+      const layerBefore = document.getElementById('layerBefore');
+      const layerAfter = document.getElementById('layerAfter');
+      const seamSvg = document.getElementById('seamSvg');
+      const seamShadow = document.getElementById('seamShadow');
+      const seamAura = document.getElementById('seamAura');
+      const seamCore = document.getElementById('seamCore');
+      const seamStopMid = document.getElementById('seamStopMid');
+      const handleAnchor = document.getElementById('handleAnchor');
+      const handleEl = document.getElementById('handle');
+      const pctPill = document.getElementById('pctPill');
+      const chevLeft = document.getElementById('chevLeft');
+      const chevRight = document.getElementById('chevRight');
+      const badgeBefore = document.getElementById('badgeBefore');
+      const badgeAfter = document.getElementById('badgeAfter');
+      const dotBefore = document.getElementById('dotBefore');
+      const dotAfter = document.getElementById('dotAfter');
+      const labelBefore = document.getElementById('labelBefore');
+      const labelAfter = document.getElementById('labelAfter');
+      const glowLeft = document.getElementById('glowLeft');
+      const glowRight = document.getElementById('glowRight');
+      const notchTop = document.getElementById('notchTop');
+      const notchBottom = document.getElementById('notchBottom');
+      const telPos = document.getElementById('telPos');
+      const telVel = document.getElementById('telVel');
+      const telBow = document.getElementById('telBow');
+      const uploadTray = document.getElementById('uploadTray');
+      const inputBefore = document.getElementById('inputBefore');
+      const inputAfter = document.getElementById('inputAfter');
+
+      const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let reducedMotion = reducedMotionQuery.matches;
+      reducedMotionQuery.addEventListener?.('change', (e) => { reducedMotion = e.matches; });
+
+      let presetKey = 'elastic';
+      let sceneKey = 'arch';
+      let customBeforeUrl = null;
+      let customAfterUrl = null;
+
+      let stageW = 640;
+      let stageH = 340;
+
+      // Two-body continuous physical degrees of freedom:
+      // - rail: top & bottom edge anchor sliders (always strictly monotonic / calm, never wobble!)
+      // - mid:  handle / elastic rubber-band apex (stretches ahead during drag, twangs around rail on release!)
+      const rail = { x: 0.5, v: 0 };
+      const mid = { x: 0.5, v: 0 };
+      const yGrab = { x: 0.5, v: 0 };       // Vertical grab point along seam
+      const scale = { x: 1, v: 0 };         // Handle hover/press scale
+      const squash = { x: 0, v: 0 };        // Handle horizontal stretch (+)/compression (-)
+      const tilt = { x: 0, v: 0 };          // Handle aerodynamic lean in degrees
+
+      // Interaction mode: 'idle' | 'drag' | 'glide' | 'settle' | 'jump'
+      let mode = 'idle';
+      let targetX = 0.5;
+      let targetY = 0.5;
+      let isHoveringHandle = false;
+      let isDragging = false;
+      let activePointerId = null;
+      let grabOffsetX = 0;
+      let pointerDownClientX = 0;
+      let hasDragged = false;
+      let pointerRawX = 0.5;
+      let pointerSamples = [];
+      let leftWallFlash = 0;
+      let rightWallFlash = 0;
+      let pillVisibleTimer = 0;
+      let rafId = null;
+      let lastTime = 0;
+
+      // =====================================================================
+      // 5. Scene & Custom Image Management
+      // =====================================================================
+      function renderSceneLayers() {
+        const scene = SCENES[sceneKey];
+        if (customBeforeUrl) {
+          layerBefore.innerHTML = `<img src="${customBeforeUrl}" alt="Before 自定义图片" draggable="false" />`;
+          labelBefore.textContent = 'BEFORE · 自定义图';
+          dotBefore.style.background = '#38bdf8';
+        } else {
+          layerBefore.innerHTML = scene.beforeSvg;
+          labelBefore.textContent = scene.beforeLabel;
+          dotBefore.style.background = scene.beforeDot;
+        }
+
+        if (customAfterUrl) {
+          layerAfter.innerHTML = `<img src="${customAfterUrl}" alt="After 自定义图片" draggable="false" />`;
+          labelAfter.textContent = 'AFTER · 自定义图';
+          dotAfter.style.background = '#fbbf24';
+        } else {
+          layerAfter.innerHTML = scene.afterSvg;
+          labelAfter.textContent = scene.afterLabel;
+          dotAfter.style.background = scene.afterDot;
+        }
+      }
+
+      // =====================================================================
+      // 6. Geometry Projection & Zero-Reflow DOM Rendering
+      // =====================================================================
+      function renderFrame() {
+        const W = stageW;
+        const H = stageH;
+        const clampedRail = clamp(rail.x, 0, 1);
+        const clampedMid = clamp(mid.x, 0, 1);
+        const over = mid.x - clampedMid; // < 0 left over-drag, > 0 right over-drag
+
+        const xe = clampedRail * W;
+        const xa = reducedMotion ? xe : clampedMid * W;
+        const yg = clamp(yGrab.x, 0.14, 0.86) * H;
+        const stretchPx = xa - xe;
+
+        // Taut rubber-band geometry:
+        // - Exits top/bottom anchor pins aimed cleanly toward handle (alpha = 0.34, no floppy S-bend)
+        // - Arrives/leaves handle with vertical tangent so band wraps smoothly around circular puck
+        const c1x = xe + stretchPx * 0.34;
+        const c1y = yg * 0.34;
+        const c2x = xa;
+        const c2y = yg * 0.72;
+
+        const c3x = xa;
+        const c3y = yg + (H - yg) * 0.28;
+        const c4x = xe + stretchPx * 0.34;
+        const c4y = yg + (H - yg) * 0.66;
+
+        const seamD =
+          `M ${xe.toFixed(2)} 0 ` +
+          `C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${xa.toFixed(2)} ${yg.toFixed(2)} ` +
+          `C ${c3x.toFixed(2)} ${c3y.toFixed(2)}, ${c4x.toFixed(2)} ${c4y.toFixed(2)}, ${xe.toFixed(2)} ${H.toFixed(2)}`;
+
+        const clipD = `${seamD} L 0 ${H.toFixed(2)} L 0 0 Z`;
+
+        // 1. Hardware-composited clip-path on Before layer + subtle rubber-band edge tension
+        layerBefore.style.clipPath = `path('${clipD}')`;
+        if (Math.abs(over) > 1e-4 && !reducedMotion) {
+          const shiftPx = over * W * 0.22;
+          const squeeze = 1 + Math.abs(over) * 0.28;
+          const origin = over < 0 ? '0% 50%' : '100% 50%';
+          layerBefore.style.transformOrigin = origin;
+          layerAfter.style.transformOrigin = origin;
+          layerBefore.style.transform = `translate3d(${shiftPx.toFixed(2)}px,0,0) scaleX(${squeeze.toFixed(4)})`;
+          layerAfter.style.transform = `translate3d(${shiftPx.toFixed(2)}px,0,0) scaleX(${squeeze.toFixed(4)})`;
+        } else if (layerBefore.style.transform) {
+          layerBefore.style.transform = '';
+          layerAfter.style.transform = '';
+        }
+
+        // 2. Elastic seam SVG strokes & tension glow
+        seamShadow.setAttribute('d', seamD);
+        seamCore.setAttribute('d', seamD);
+        seamAura.setAttribute('d', seamD);
+        seamStopMid.setAttribute('offset', `${(clamp(yGrab.x, 0.14, 0.86) * 100).toFixed(1)}%`);
+
+        const tension = clamp(Math.abs(stretchPx) / 28 + Math.abs(mid.v) * 0.28, 0, 1);
+        seamAura.setAttribute('opacity', (reducedMotion ? 0 : tension * 0.88).toFixed(3));
+
+        // 3. Handle position, scale, squash-stretch, aerodynamic lean & dynamic shadow
+        const handleX = clamp(xa + over * W * 0.24, 14, W - 14);
+        handleAnchor.style.transform = `translate3d(${handleX.toFixed(2)}px, ${yg.toFixed(2)}px, 0)`;
+
+        const sx = scale.x * (1 + squash.x);
+        const sy = scale.x / Math.max(0.75, 1 + squash.x);
+        const rot = reducedMotion ? 0 : tilt.x;
+        handleEl.style.transform = `rotate(${rot.toFixed(2)}deg) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+
+        const shadowX = clamp(-mid.v * 4.2 - stretchPx * 0.14, -10, 10);
+        const lift = isDragging ? 14 : isHoveringHandle ? 10 : 7;
+        handleEl.style.boxShadow =
+          `${shadowX.toFixed(1)}px ${lift}px ${lift * 2.2}px rgba(0,0,0,${isDragging ? 0.42 : 0.3}), ` +
+          `0 2px 6px rgba(0,0,0,0.22), inset 0 1px 1px rgba(255,255,255,1)`;
+
+        // Directional chevron micro-shift
+        const spread = isDragging ? 2.2 : isHoveringHandle ? 1.2 : 0;
+        const bias = reducedMotion ? 0 : clamp(stretchPx * 0.08 + mid.v * 0.7, -2.5, 2.5);
+        chevLeft.style.transform = `translateX(${(-spread + bias).toFixed(2)}px)`;
+        chevRight.style.transform = `translateX(${(spread + bias).toFixed(2)}px)`;
+
+        // 4. Edge tension & collision glows
+        const leftGlowVal = clamp((over < 0 ? -over / 0.045 : 0) + leftWallFlash, 0, 1);
+        const rightGlowVal = clamp((over > 0 ? over / 0.045 : 0) + rightWallFlash, 0, 1);
+        glowLeft.style.opacity = (reducedMotion ? 0 : leftGlowVal).toFixed(3);
+        glowRight.style.opacity = (reducedMotion ? 0 : rightGlowVal).toFixed(3);
+
+        // 5. Magnetic center notch illumination (tracks rail anchor alignment)
+        const atCenter = Math.abs(clampedRail - 0.5) < 0.012 && Math.abs(rail.v) < 0.35;
+        notchTop.classList.toggle('is-lit', atCenter);
+        notchBottom.classList.toggle('is-lit', atCenter);
+
+        // 6. Collision-aware corner badges
+        const leftEdgeX = Math.min(clampedRail, clampedMid);
+        const rightEdgeX = Math.max(clampedRail, clampedMid);
+        const leftBadgeVis = smoothstep(0.08, 0.24, leftEdgeX);
+        const rightBadgeVis = smoothstep(0.08, 0.24, 1 - rightEdgeX);
+        badgeBefore.style.opacity = leftBadgeVis.toFixed(3);
+        badgeBefore.style.transform = `translate3d(0, ${((1 - leftBadgeVis) * -6).toFixed(2)}px, 0) scale(${(0.92 + 0.08 * leftBadgeVis).toFixed(3)})`;
+        badgeAfter.style.opacity = rightBadgeVis.toFixed(3);
+        badgeAfter.style.transform = `translate3d(0, ${((1 - rightBadgeVis) * -6).toFixed(2)}px, 0) scale(${(0.92 + 0.08 * rightBadgeVis).toFixed(3)})`;
+
+        // 7. Readout pill, ARIA & telemetry
+        const pct = Math.round(clampedMid * 100);
+        const pctDec = (clampedMid * 100).toFixed(1);
+        pctPill.textContent = `${pct}%`;
+        pctPill.classList.toggle('is-below', yGrab.x < 0.26);
+        pctPill.classList.toggle('is-visible', isDragging || pillVisibleTimer > 0);
+        handleEl.setAttribute('aria-valuenow', String(pct));
+        handleEl.setAttribute('aria-valuetext', `${pct}%`);
+
+        telPos.textContent = `${pctDec}%`;
+        telVel.textContent = `${mid.v >= 0 ? '+' : ''}${mid.v.toFixed(2)}`;
+        telBow.textContent = `${stretchPx >= 0 ? '+' : ''}${stretchPx.toFixed(1)}px`;
+      }
+
+      // =====================================================================
+      // 7. Two-Body Physics Simulation Loop (Automatic Zero-CPU Idle Sleep)
+      // =====================================================================
+      function wake() {
+        if (rafId !== null) return;
+        lastTime = performance.now();
+        rafId = requestAnimationFrame(tick);
+      }
+
+      function tick(now) {
+        rafId = null;
+        const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
+        lastTime = now;
+
+        const p = PRESETS[presetKey];
+        const maxStretchNorm = p.bowMax / Math.max(1, stageW);
+
+        if (reducedMotion) {
+          const cx = clamp(targetX, 0, 1);
+          rail.x = cx; rail.v = 0;
+          mid.x = cx; mid.v = 0;
+          yGrab.x = clamp(targetY, 0.14, 0.86); yGrab.v = 0;
+          scale.x = isDragging ? 0.96 : isHoveringHandle ? 1.08 : 1; scale.v = 0;
+          squash.x = 0; squash.v = 0;
+          tilt.x = 0; tilt.v = 0;
+          leftWallFlash = 0; rightWallFlash = 0;
+          if (!isDragging) mode = 'idle';
+          pillVisibleTimer = Math.max(0, pillVisibleTimer - dt);
+          renderFrame();
+          if (isDragging || pillVisibleTimer > 0) rafId = requestAnimationFrame(tick);
+          return;
+        }
+
+        // --- A. Two-Body Primary Motion (Rail = calm monotonic pins, Mid = elastic rubber-band handle) ---
+        if (mode === 'drag') {
+          // Handle tracks pointer crisply with rubber-band resistance beyond borders
+          const rubberTarget = rubberBand(pointerRawX, p.rubberLimit);
+          stepSpring(mid, rubberTarget, p.dragOmega, p.dragZeta, dt);
+
+          // Top & bottom rail anchors chase handle monotonically with track friction (ZERO wobble!)
+          const clampedMid = clamp(mid.x, 0, 1);
+          const prevRail = rail.x;
+          rail.x += (clampedMid - rail.x) * (1 - Math.exp(-p.railFollow * dt));
+          if (clampedMid - rail.x > maxStretchNorm) rail.x = clampedMid - maxStretchNorm;
+          else if (rail.x - clampedMid > maxStretchNorm) rail.x = clampedMid + maxStretchNorm;
+          rail.x = clamp(rail.x, 0, 1);
+          rail.v = (rail.x - prevRail) / dt;
+        } else if (mode === 'glide') {
+          // Rail coasts monotonically under viscous track friction
+          const decay = Math.exp(-p.friction * dt);
+          rail.x += rail.v * ((1 - decay) / p.friction);
+          rail.v *= decay;
+
+          // Elastic wall collision on rail + impulse into rubber band handle
+          if (rail.x < 0) {
+            const impact = Math.abs(rail.v);
+            rail.x = 0;
+            rail.v = impact * p.restitution;
+            mid.x = Math.max(0, mid.x);
+            mid.v = Math.max(mid.v, impact * (p.restitution + 0.42));
+            squash.v -= clamp(impact * 1.4, 0, 3.2);
+            leftWallFlash = clamp(leftWallFlash + impact * 0.55, 0, 1);
+            if (Math.abs(rail.v) < 0.08) rail.v = 0;
+          } else if (rail.x > 1) {
+            const impact = Math.abs(rail.v);
+            rail.x = 1;
+            rail.v = -impact * p.restitution;
+            mid.x = Math.min(1, mid.x);
+            mid.v = Math.min(mid.v, -impact * (p.restitution + 0.42));
+            squash.v -= clamp(impact * 1.4, 0, 3.2);
+            rightWallFlash = clamp(rightWallFlash + impact * 0.55, 0, 1);
+            if (Math.abs(rail.v) < 0.08) rail.v = 0;
+          }
+
+          // Rubber-band handle springs around the gliding rail anchor (bounded by max physical stretch)
+          stepSpring(mid, rail.x, p.bandOmega, p.bandZeta, dt);
+          if (mid.x - rail.x > maxStretchNorm) {
+            mid.x = rail.x + maxStretchNorm;
+            if (mid.v > rail.v) mid.v = rail.v;
+          } else if (rail.x - mid.x > maxStretchNorm) {
+            mid.x = rail.x - maxStretchNorm;
+            if (mid.v < rail.v) mid.v = rail.v;
+          }
+          // Prevent middle handle from piercing outside walls
+          if (mid.x < 0) {
+            mid.x = 0;
+            if (mid.v < 0) {
+              leftWallFlash = clamp(leftWallFlash + Math.abs(mid.v) * 0.28, 0, 1);
+              mid.v = Math.abs(mid.v) * 0.55;
+            }
+          } else if (mid.x > 1) {
+            mid.x = 1;
+            if (mid.v > 0) {
+              rightWallFlash = clamp(rightWallFlash + Math.abs(mid.v) * 0.28, 0, 1);
+              mid.v = -Math.abs(mid.v) * 0.55;
+            }
+          }
+
+          // Magnetic 50% detent capture when rail slows near center
+          if (
+            p.detentStrength > 0 &&
+            Math.abs(rail.x - 0.5) < p.detentStrength &&
+            Math.abs(rail.v) < p.detentVelMax
+          ) {
+            targetX = 0.5;
+            mode = 'settle';
+          } else if (Math.abs(rail.v) < 0.015) {
+            rail.v = 0;
+            targetX = rail.x;
+            mode = 'settle';
+          }
+        } else if (mode === 'settle') {
+          // Rail finishes sliding monotonically to targetX and LOCKS DEAD STILL (zero wobble!)
+          stepRailMonotonic(rail, targetX, p.jumpRailOmega, dt);
+          // Middle rubber band twangs elastically around the steady rail anchors!
+          stepSpring(mid, rail.x, p.bandOmega, p.bandZeta, dt);
+          // Soft wall rebound if twanging near 0% or 100%
+          if (mid.x < 0) {
+            mid.x = 0;
+            if (mid.v < 0) mid.v = Math.abs(mid.v) * 0.45;
+          } else if (mid.x > 1) {
+            mid.x = 1;
+            if (mid.v > 0) mid.v = -Math.abs(mid.v) * 0.45;
+          }
+          if (
+            Math.abs(rail.x - targetX) < 1e-4 &&
+            Math.abs(mid.x - rail.x) < 0.0004 &&
+            Math.abs(mid.v) < 0.004
+          ) {
+            rail.x = targetX; rail.v = 0;
+            mid.x = targetX; mid.v = 0;
+            mode = 'idle';
+          }
+        } else if (mode === 'jump') {
+          // Click-to-jump / keyboard / double-click:
+          // Rail glides monotonically to targetX (zero edge overshoot!), while handle leads & twangs!
+          const prevRailU = rail.x - targetX;
+          stepRailMonotonic(rail, targetX, p.jumpRailOmega, dt);
+          stepSpring(mid, targetX, p.jumpMidOmega, p.jumpMidZeta, dt);
+          // Enforce physical rubber-band stretch limit: excess lead pulls rail forward monotonically (never past target)
+          if (mid.x - rail.x > maxStretchNorm) {
+            if (prevRailU < 0) {
+              rail.x = Math.min(targetX, mid.x - maxStretchNorm);
+            }
+            if (mid.x - rail.x > maxStretchNorm) mid.x = rail.x + maxStretchNorm;
+          } else if (rail.x - mid.x > maxStretchNorm) {
+            if (prevRailU > 0) {
+              rail.x = Math.max(targetX, mid.x + maxStretchNorm);
+            }
+            if (rail.x - mid.x > maxStretchNorm) mid.x = rail.x - maxStretchNorm;
+          }
+          if (mid.x < 0) {
+            mid.x = 0;
+            if (mid.v < 0) {
+              leftWallFlash = clamp(leftWallFlash + Math.abs(mid.v) * 0.25, 0, 1);
+              mid.v = Math.abs(mid.v) * 0.45;
+            }
+          } else if (mid.x > 1) {
+            mid.x = 1;
+            if (mid.v > 0) {
+              rightWallFlash = clamp(rightWallFlash + Math.abs(mid.v) * 0.25, 0, 1);
+              mid.v = -Math.abs(mid.v) * 0.45;
+            }
+          }
+          if (
+            Math.abs(rail.x - targetX) < 1e-4 &&
+            Math.abs(mid.x - targetX) < 0.0004 &&
+            Math.abs(mid.v) < 0.004
+          ) {
+            rail.x = targetX; rail.v = 0;
+            mid.x = targetX; mid.v = 0;
+            mode = 'idle';
+          }
+        }
+
+        // --- B. Vertical grab point follows pointer smoothly ---
+        stepSpring(yGrab, targetY, isDragging ? 26 : 12, 0.86, dt);
+
+        // --- C. Asymmetric Handle Scale (crisp hover expand, firm grab squish) ---
+        const desiredScale = isDragging ? 0.94 : isHoveringHandle ? 1.13 : 1.0;
+        const scaleOmega = desiredScale > scale.x ? 30 : 21;
+        const scaleZeta = desiredScale > scale.x ? 0.55 : 0.72;
+        stepSpring(scale, desiredScale, scaleOmega, scaleZeta, dt);
+
+        // --- D. Handle Squash-Stretch ---
+        const overAmt = Math.abs(mid.x - clamp(mid.x, 0, 1));
+        const stretchPx = (clamp(mid.x, 0, 1) - clamp(rail.x, 0, 1)) * stageW;
+        const speedStretch = clamp(Math.abs(mid.v) * 0.045 + Math.abs(stretchPx) * 0.0025, 0, 0.16);
+        const wallCompress = clamp(overAmt * 4.2, 0, 0.18);
+        stepSpring(squash, speedStretch - wallCompress, 26, 0.45, dt);
+
+        // --- E. Aerodynamic / tension handle tilt ---
+        const desiredTilt = clamp(mid.v * 3.0 + stretchPx * 0.22, -11, 11);
+        stepSpring(tilt, desiredTilt, 24, 0.48, dt);
+
+        // --- F. Decay wall impact flash & floating readout pill ---
+        leftWallFlash *= Math.exp(-6.5 * dt);
+        if (leftWallFlash < 0.002) leftWallFlash = 0;
+        rightWallFlash *= Math.exp(-6.5 * dt);
+        if (rightWallFlash < 0.002) rightWallFlash = 0;
+        if (!isDragging && pillVisibleTimer > 0) {
+          pillVisibleTimer = Math.max(0, pillVisibleTimer - dt);
+        }
+
+        renderFrame();
+
+        // Sleep automatically when all physics settle
+        const settled =
+          mode === 'idle' &&
+          !isDragging &&
+          pillVisibleTimer <= 0 &&
+          leftWallFlash === 0 &&
+          rightWallFlash === 0 &&
+          Math.abs(yGrab.x - targetY) < 0.0005 && Math.abs(yGrab.v) < 0.003 &&
+          Math.abs(scale.x - desiredScale) < 0.0008 && Math.abs(scale.v) < 0.008 &&
+          Math.abs(squash.x) < 0.0008 && Math.abs(squash.v) < 0.008 &&
+          Math.abs(tilt.x) < 0.04 && Math.abs(tilt.v) < 0.3;
+
+        if (!settled) {
+          rafId = requestAnimationFrame(tick);
+        }
+      }
+
+      // =====================================================================
+      // 8. Pointer, Double-Click & Keyboard Interaction
+      // =====================================================================
+      function pointerCoords(e) {
+        const rect = stage.getBoundingClientRect();
+        stageW = Math.max(1, rect.width);
+        stageH = Math.max(1, rect.height);
+        return {
+          nx: (e.clientX - rect.left) / stageW,
+          ny: clamp((e.clientY - rect.top) / stageH, 0.14, 0.86)
+        };
+      }
+
+      function pushSample(nx, t) {
+        pointerSamples.push({ x: nx, t });
+        const cutoff = t - 85;
+        while (pointerSamples.length > 2 && pointerSamples[0].t < cutoff) {
+          pointerSamples.shift();
+        }
+      }
+
+      function computeReleaseVelocity(now) {
+        if (pointerSamples.length < 2) return 0;
+        const last = pointerSamples[pointerSamples.length - 1];
+        if (now - last.t > 55) return 0;
+        const first = pointerSamples[0];
+        const dtSec = (last.t - first.t) / 1000;
+        if (dtSec < 0.006) return 0;
+        return clamp((last.x - first.x) / dtSec, -6.0, 6.0);
+      }
+
+      stage.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('#uploadTray')) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        stage.setPointerCapture(e.pointerId);
+
+        const { nx, ny } = pointerCoords(e);
+        const now = performance.now();
+
+        // Preserve grab offset if grabbing directly on/near the handle; otherwise pull smoothly to click point
+        const distPx = Math.abs(nx - clamp(mid.x, 0, 1)) * stageW;
+        grabOffsetX = distPx <= 30 ? clamp(mid.x, 0, 1) - nx : 0;
+        pointerDownClientX = e.clientX;
+        hasDragged = false;
+
+        pointerRawX = nx + grabOffsetX;
+        targetX = clamp(pointerRawX, 0, 1);
+        targetY = ny;
+        isDragging = true;
+        mode = 'drag';
+        pointerSamples = [{ x: pointerRawX, t: now }];
+        pillVisibleTimer = 0.7;
+
+        stage.classList.add('is-dragging');
+        handleEl.classList.add('is-active');
+        handleEl.focus({ preventScroll: true });
+        wake();
+      });
+
+      stage.addEventListener('pointermove', (e) => {
+        if (!isDragging || e.pointerId !== activePointerId) return;
+        if (!hasDragged && Math.abs(e.clientX - pointerDownClientX) > 4) {
+          hasDragged = true;
+        }
+        const { nx, ny } = pointerCoords(e);
+        const now = performance.now();
+        pointerRawX = nx + grabOffsetX;
+        targetX = clamp(pointerRawX, 0, 1);
+        targetY = ny;
+        pushSample(pointerRawX, now);
+        wake();
+      });
+
+      function endDrag(e) {
+        if (!isDragging || (e && e.pointerId !== activePointerId)) return;
+        isDragging = false;
+        activePointerId = null;
+        stage.classList.remove('is-dragging');
+        handleEl.classList.toggle('is-active', isHoveringHandle);
+        pillVisibleTimer = 0.75;
+
+        const now = performance.now();
+        const vPointer = computeReleaseVelocity(now);
+        const p = PRESETS[presetKey];
+
+        if (mid.x < 0 || mid.x > 1) {
+          // Over-dragged past edge: rail is already locked flush at 0/1; band snaps back inward & twangs!
+          targetX = clamp(mid.x, 0, 1);
+          rail.x = targetX;
+          rail.v = 0;
+          mid.v = mid.v * 0.4 + vPointer * 0.2;
+          mode = 'settle';
+        } else if (!hasDragged) {
+          // Click-to-jump: rail glides monotonically to click spot, handle leads & twangs cleanly
+          targetX = clamp(pointerRawX, 0, 1);
+          mode = 'jump';
+        } else {
+          const launchV = vPointer * 0.78 + mid.v * 0.22;
+          if (Math.abs(launchV) > 0.26) {
+            // Fast flick: rail glides smoothly on inertia, rubber band leads & vibrates around it
+            rail.v = clamp(launchV * 0.86, -5.6, 5.6);
+            mid.v = clamp(launchV, -6.2, 6.2);
+            mode = 'glide';
+          } else {
+            // Pluck / gentle release: rail locks smoothly with zero wobble, stretched band snaps back & twangs!
+            const blend = rail.x + (clamp(mid.x, 0, 1) - rail.x) * p.releaseBias;
+            let settledTarget = clamp(blend, 0, 1);
+            if (p.detentStrength > 0 && Math.abs(settledTarget - 0.5) < p.detentStrength) {
+              settledTarget = 0.5;
+            }
+            targetX = settledTarget;
+            mid.v = vPointer * 0.35;
+            mode = 'settle';
+          }
+        }
+        wake();
+      }
+
+      stage.addEventListener('pointerup', endDrag);
+      stage.addEventListener('pointercancel', endDrag);
+
+      stage.addEventListener('dblclick', (e) => {
+        if (e.target.closest('#uploadTray')) return;
+        springTo(0.5, 0.5);
+      });
+
+      handleEl.addEventListener('pointerenter', () => {
+        isHoveringHandle = true;
+        handleEl.classList.add('is-active');
+        wake();
+      });
+
+      handleEl.addEventListener('pointerleave', () => {
+        isHoveringHandle = false;
+        if (!isDragging) handleEl.classList.remove('is-active');
+        wake();
+      });
+
+      handleEl.addEventListener('keydown', (e) => {
+        const step = e.shiftKey ? 0.15 : 0.05;
+        let next = null;
+        if (e.key === 'ArrowLeft') next = clamp(targetX - step, 0, 1);
+        else if (e.key === 'ArrowRight') next = clamp(targetX + step, 0, 1);
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = 1;
+        else if (e.key === ' ' || e.key === 'Enter') {
+          next = Math.abs(rail.x - 0.5) < 0.05 ? 0.82 : 0.5;
+        }
+        if (next !== null) {
+          e.preventDefault();
+          springTo(next);
+        }
+      });
+
+      function springTo(nx, ny) {
+        targetX = clamp(nx, 0, 1);
+        if (typeof ny === 'number') targetY = clamp(ny, 0.14, 0.86);
+        mode = 'jump';
+        pillVisibleTimer = 0.9;
+        wake();
+      }
+
+      // =====================================================================
+      // 9. Controls, ResizeObserver & Custom Image Uploads
+      // =====================================================================
+      document.querySelectorAll('[data-scene]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          sceneKey = btn.dataset.scene;
+          if (customBeforeUrl) URL.revokeObjectURL(customBeforeUrl);
+          if (customAfterUrl) URL.revokeObjectURL(customAfterUrl);
+          customBeforeUrl = null;
+          customAfterUrl = null;
+          document.querySelectorAll('[data-scene]').forEach((b) =>
+            b.setAttribute('aria-pressed', String(b === btn))
+          );
+          renderSceneLayers();
+          // Pluck the middle rubber band slightly while top & bottom pins hold still
+          if (!reducedMotion) {
+            mid.v += 0.65;
+            scale.v += 1.4;
+            targetX = rail.x;
+            mode = 'settle';
+          }
+          wake();
+        });
+      });
+
+      document.querySelectorAll('[data-preset]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          presetKey = btn.dataset.preset;
+          document.querySelectorAll('[data-preset]').forEach((b) =>
+            b.setAttribute('aria-pressed', String(b === btn))
+          );
+          if (!reducedMotion) {
+            // Demo pluck of the new preset's rubber band feel (top & bottom anchors hold still!)
+            mid.v += rail.x > 0.5 ? -1.15 : 1.15;
+            targetX = rail.x;
+            mode = 'settle';
+            pillVisibleTimer = 0.8;
+          }
+          wake();
+        });
+      });
+
+      document.getElementById('btnCenter').addEventListener('click', () => {
+        springTo(0.5, 0.5);
+      });
+
+      document.getElementById('btnFlickDemo').addEventListener('click', () => {
+        if (reducedMotion) {
+          springTo(rail.x > 0.5 ? 0.15 : 0.85, 0.5);
+          return;
+        }
+        // Launch an energetic flick toward the farther wall to showcase steady rail + elastic band & rebound
+        const dir = rail.x >= 0.5 ? -1 : 1;
+        targetY = 0.44;
+        rail.v = dir * 3.1;
+        mid.v = dir * 3.8;
+        mode = 'glide';
+        pillVisibleTimer = 1.4;
+        wake();
+      });
+
+      document.getElementById('btnCustom').addEventListener('click', () => {
+        uploadTray.hidden = !uploadTray.hidden;
+      });
+
+      document.getElementById('btnCloseTray').addEventListener('click', () => {
+        uploadTray.hidden = true;
+      });
+
+      document.getElementById('btnClearCustom').addEventListener('click', () => {
+        if (customBeforeUrl) URL.revokeObjectURL(customBeforeUrl);
+        if (customAfterUrl) URL.revokeObjectURL(customAfterUrl);
+        customBeforeUrl = null;
+        customAfterUrl = null;
+        inputBefore.value = '';
+        inputAfter.value = '';
+        renderSceneLayers();
+        uploadTray.hidden = true;
+        wake();
+      });
+
+      inputBefore.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (customBeforeUrl) URL.revokeObjectURL(customBeforeUrl);
+        customBeforeUrl = URL.createObjectURL(file);
+        renderSceneLayers();
+        wake();
+      });
+
+      inputAfter.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (customAfterUrl) URL.revokeObjectURL(customAfterUrl);
+        customAfterUrl = URL.createObjectURL(file);
+        renderSceneLayers();
+        wake();
+      });
+
+      // Keep pixel geometry synced with stage width/height
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 0 && height > 0) {
+            stageW = width;
+            stageH = height;
+            seamSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            renderFrame();
+          }
+        }
+      });
+      ro.observe(stage);
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        } else if (!document.hidden && (mode !== 'idle' || Math.abs(mid.x - rail.x) > 0.0005 || Math.abs(tilt.x) > 0.04)) {
+          wake();
+        }
+      });
+
+      // =====================================================================
+      // 10. Init & Subtle Rubber-Band Pluck Invitation
+      // =====================================================================
+      renderSceneLayers();
+      const initRect = stage.getBoundingClientRect();
+      stageW = Math.max(300, initRect.width || 640);
+      stageH = Math.max(200, initRect.height || 340);
+      seamSvg.setAttribute('viewBox', `0 0 ${stageW} ${stageH}`);
+      renderFrame();
+
+      if (!reducedMotion) {
+        // Entrance pluck: top & bottom pins sit steady at 50%, middle band plucks from 56% -> 50%
+        rail.x = 0.5;
+        rail.v = 0;
+        mid.x = 0.565;
+        mid.v = -0.35;
+        targetX = 0.5;
+        mode = 'settle';
+        renderFrame();
+        setTimeout(() => {
+          if (!isDragging) wake();
+        }, 220);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>流光棱镜微交互按钮</title>
+  <style>
+    @property --beam-angle {
+      syntax: "<angle>";
+      initial-value: 0deg;
+      inherits: true;
+    }
+
+    @property --beam-opacity {
+      syntax: "<number>";
+      initial-value: 0;
+      inherits: true;
+    }
+
+    @property --beam-strength {
+      syntax: "<number>";
+      initial-value: 1;
+      inherits: true;
+    }
+
+    :root {
+      --bg: #ffffff;
+      --ink: #0a0a0a;
+      --ink-80: rgba(10, 10, 10, 0.8);
+      --ink-muted: #737373;
+      --border: #e5e5e5;
+      --border-hover: #d4d4d4;
+      --rose: #ff2357;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    body {
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      place-items: center;
+      padding: 28px 20px 26px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      width: 100%;
+    }
+
+    /* =========================================================================
+       Exact 3-Layer Optical Beam Engine (faithful to Spectrum UI "Sponsor Me")
+       - All 3 layers sit inside overflow:hidden rounded-full wrapper
+       - Razor-thin pixel ellipses hug the exact perimeter (center stays pure #fff)
+       - Layer 1 (::before): Edge-only pixel-ellipse refraction + moving inset shadow
+       - Layer 2 (::after):  1px ring-masked specular + pixel ellipses
+       - Layer 3 ([data-beam-bloom]): Clipped 8px blurred specular edge highlight
+       ========================================================================= */
+    [data-beam] {
+      --beam-strength: 1;
+      --beam-inner-opacity: 1;
+      --beam-stroke-opacity: 1;
+      --beam-bloom-opacity: 1;
+      --beam-hue-base: 0deg;
+
+      /* Palette: Colorful (exact 8 RGB triplets) */
+      --rgb1: 50, 200, 80;
+      --rgb2: 30, 185, 170;
+      --rgb3: 255, 120, 40;
+      --rgb4: 100, 70, 255;
+      --rgb5: 240, 50, 180;
+      --rgb6: 180, 40, 240;
+      --rgb7: 40, 140, 255;
+      --rgb8: 255, 50, 100;
+
+      position: relative;
+      display: inline-flex;
+      flex-shrink: 0;
+      border-radius: 999px;
+      overflow: hidden;
+      will-change: transform;
+      transition: --beam-strength 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    [data-beam][data-palette="ocean"] {
+      --rgb1: 14, 165, 233;
+      --rgb2: 20, 184, 166;
+      --rgb3: 56, 189, 248;
+      --rgb4: 99, 102, 241;
+      --rgb5: 59, 130, 246;
+      --rgb6: 6, 182, 212;
+      --rgb7: 129, 140, 248;
+      --rgb8: 45, 212, 191;
+    }
+
+    [data-beam][data-palette="rose"] {
+      --rgb1: 255, 35, 87;
+      --rgb2: 251, 113, 133;
+      --rgb3: 249, 115, 22;
+      --rgb4: 236, 72, 153;
+      --rgb5: 245, 158, 11;
+      --rgb6: 217, 70, 239;
+      --rgb7: 251, 146, 60;
+      --rgb8: 225, 29, 72;
+    }
+
+    [data-beam][data-active] {
+      animation:
+        beam-spin 1.96s linear infinite,
+        beam-fade-in 0.6s ease forwards;
+    }
+
+    [data-beam][data-behavior="hover"] {
+      animation: beam-spin 1.96s linear infinite;
+      --beam-opacity: 0;
+      transition: --beam-opacity 0.4s ease, --beam-strength 280ms ease;
+    }
+
+    [data-beam][data-behavior="hover"]:hover,
+    [data-beam][data-behavior="hover"]:focus-within,
+    [data-beam][data-behavior="hover"][data-sponsored="true"] {
+      --beam-opacity: 1;
+    }
+
+    [data-beam][data-behavior="breathing"] {
+      animation:
+        beam-spin 4.6s linear infinite,
+        beam-breathe 3.2s ease-in-out infinite;
+    }
+
+    /* Layer 1: Razor-thin perimeter ellipses + rotating inset glass refraction */
+    [data-beam][data-active]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      clip-path: inset(0 round 999px);
+      background:
+        radial-gradient(ellipse 9px 18px at 2% 68%, rgba(var(--rgb1), 0.5), transparent),
+        radial-gradient(ellipse 4px 8px at 2% 68%, rgba(var(--rgb2), 0.45), transparent),
+        radial-gradient(ellipse 59px 9px at 72% -3%, rgba(var(--rgb3), 0.35), transparent),
+        radial-gradient(ellipse 42px 7px at 74% 100%, rgba(var(--rgb4), 0.35), transparent),
+        radial-gradient(ellipse 10px 17px at 100% 27%, rgba(var(--rgb5), 0.3), transparent),
+        radial-gradient(ellipse 10px 18px at 100% 27%, rgba(var(--rgb6), 0.4), transparent),
+        radial-gradient(ellipse 5px 10px at 100% 27%, rgba(var(--rgb7), 0.3), transparent),
+        radial-gradient(ellipse 11px 12px at 100% 27%, rgba(var(--rgb8), 0.3), transparent);
+      box-shadow: inset 0 0 5px 1px rgba(0, 0, 0, 0.14);
+      -webkit-mask-image: conic-gradient(
+        from var(--beam-angle),
+        transparent 0%, transparent 22%,
+        rgba(255, 255, 255, 0.12) 28%, rgba(255, 255, 255, 0.4) 36%,
+        white 46%, white 82%,
+        rgba(255, 255, 255, 0.4) 88%, rgba(255, 255, 255, 0.12) 94%,
+        transparent 97%, transparent 100%
+      );
+      -webkit-mask-composite: source-over;
+      mask-image: conic-gradient(
+        from var(--beam-angle),
+        transparent 0%, transparent 22%,
+        rgba(255, 255, 255, 0.12) 28%, rgba(255, 255, 255, 0.4) 36%,
+        white 46%, white 82%,
+        rgba(255, 255, 255, 0.4) 88%, rgba(255, 255, 255, 0.12) 94%,
+        transparent 97%, transparent 100%
+      );
+      mask-composite: add;
+      pointer-events: none;
+      z-index: 1;
+      opacity: calc(var(--beam-opacity) * 0.30 * var(--beam-inner-opacity) * var(--beam-strength));
+      animation: beam-hue-shift 12s ease-in-out infinite;
+    }
+
+    /* Layer 2: 1px perimeter border stroke (specular + pixel ellipses) */
+    [data-beam][data-active]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 998px;
+      padding: 1px;
+      clip-path: inset(0 round 999px);
+      background:
+        conic-gradient(
+          from var(--beam-angle),
+          transparent 0%, transparent 54%,
+          rgba(0, 0, 0, 0.08) 57%,
+          rgba(0, 0, 0, 0.2) 60%,
+          rgba(0, 0, 0, 0.4) 63%,
+          rgba(0, 0, 0, 0.55) 66%,
+          rgba(0, 0, 0, 0.4) 69%,
+          rgba(0, 0, 0, 0.2) 72%,
+          rgba(0, 0, 0, 0.08) 75%,
+          transparent 78%, transparent 100%
+        ),
+        radial-gradient(ellipse 9px 18px at 2% 68%, rgb(var(--rgb1)), transparent),
+        radial-gradient(ellipse 4px 8px at 2% 68%, rgb(var(--rgb2)), transparent),
+        radial-gradient(ellipse 59px 9px at 72% -3%, rgb(var(--rgb3)), transparent),
+        radial-gradient(ellipse 42px 7px at 74% 100%, rgb(var(--rgb4)), transparent),
+        radial-gradient(ellipse 10px 17px at 100% 27%, rgb(var(--rgb5)), transparent),
+        radial-gradient(ellipse 10px 18px at 100% 27%, rgb(var(--rgb6)), transparent),
+        radial-gradient(ellipse 5px 10px at 100% 27%, rgb(var(--rgb7)), transparent),
+        radial-gradient(ellipse 11px 12px at 100% 27%, rgb(var(--rgb8)), transparent);
+      -webkit-mask:
+        conic-gradient(
+          from var(--beam-angle),
+          transparent 0%, transparent 30%,
+          rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+          white 52%, white 80%,
+          rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+          transparent 95%, transparent 100%
+        ),
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: source-in, xor;
+      mask:
+        conic-gradient(
+          from var(--beam-angle),
+          transparent 0%, transparent 30%,
+          rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+          white 52%, white 80%,
+          rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+          transparent 95%, transparent 100%
+        ),
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: intersect, exclude;
+      pointer-events: none;
+      z-index: 2;
+      opacity: calc(var(--beam-opacity) * 0.12 * var(--beam-stroke-opacity) * var(--beam-strength));
+      animation: beam-hue-shift 12s ease-in-out infinite;
+    }
+
+    /* Layer 3: Clipped 8px blurred specular edge bloom */
+    [data-beam] [data-beam-bloom] {
+      display: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 998px;
+      clip-path: inset(0 round 999px);
+      background: conic-gradient(
+        from var(--beam-angle),
+        transparent 0%, transparent 58%,
+        rgba(0, 0, 0, 0.02) 62%,
+        rgba(0, 0, 0, 0.08) 65%,
+        rgba(0, 0, 0, 0.2) 67%,
+        rgba(0, 0, 0, 0.4) 69%,
+        rgba(0, 0, 0, 0.6) 70%,
+        rgba(0, 0, 0, 0.6) 70.5%,
+        rgba(0, 0, 0, 0.4) 71.5%,
+        rgba(0, 0, 0, 0.2) 73%,
+        rgba(0, 0, 0, 0.08) 75%,
+        rgba(0, 0, 0, 0.02) 78%,
+        transparent 82%
+      );
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      padding: 1px;
+      filter: blur(8px) brightness(1.30) saturate(1.80);
+      pointer-events: none;
+      z-index: 3;
+      opacity: 0;
+    }
+
+    [data-beam][data-active] [data-beam-bloom] {
+      display: block;
+      opacity: calc(var(--beam-opacity) * 0.16 * var(--beam-bloom-opacity) * var(--beam-strength));
+    }
+
+    @keyframes beam-spin {
+      to { --beam-angle: 360deg; }
+    }
+
+    @keyframes beam-fade-in {
+      to { --beam-opacity: 1; }
+    }
+
+    @keyframes beam-breathe {
+      0%, 100% { --beam-opacity: 0.38; }
+      50% { --beam-opacity: 1; }
+    }
+
+    @keyframes beam-hue-shift {
+      0% { filter: hue-rotate(calc(var(--beam-hue-base) - 30deg)) brightness(1.30) saturate(1.80); }
+      50% { filter: hue-rotate(calc(var(--beam-hue-base) + 30deg)) brightness(1.30) saturate(1.80); }
+      100% { filter: hue-rotate(calc(var(--beam-hue-base) - 30deg)) brightness(1.30) saturate(1.80); }
+    }
+
+    /* Exact Sponsor Me pill proportions (32px height, 1px #e5e5e5, shadow-xs, mono 12px) */
+    .sponsor-btn {
+      position: relative;
+      display: inline-flex;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--ink-80);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 16px;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      transition:
+        border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+        color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sponsor-btn:hover {
+      border-color: var(--border-hover);
+      color: var(--ink);
+    }
+
+    .sponsor-btn:focus-visible {
+      box-shadow:
+        0 0 0 2px #ffffff,
+        0 0 0 4px rgba(255, 35, 87, 0.45);
+    }
+
+    .heart-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition:
+        fill 300ms cubic-bezier(0.4, 0, 0.2, 1),
+        stroke 300ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sponsor-btn:hover .heart-icon,
+    [data-beam][data-sponsored="true"] .heart-icon {
+      fill: var(--rose);
+      stroke: var(--rose);
+      transform: scale(1.1);
+    }
+
+    .caption {
+      font-size: 12.5px;
+      color: var(--ink-muted);
+      letter-spacing: 0.01em;
+    }
+
+    /* Minimal white bottom toolbar */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 5px;
+      border-radius: 999px;
+      background: #fafafa;
+      border: 1px solid #eeeeee;
+    }
+
+    .seg {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .seg-divider {
+      width: 1px;
+      height: 16px;
+      background: #e5e5e5;
+      margin: 0 2px;
+    }
+
+    .tool-btn {
+      height: 28px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ink-muted);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .tool-btn:hover {
+      color: var(--ink);
+    }
+
+    .tool-btn[aria-pressed="true"] {
+      background: #ffffff;
+      color: var(--ink);
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      [data-beam],
+      [data-beam]::before,
+      [data-beam]::after,
+      [data-beam] [data-beam-bloom] {
+        animation: none !important;
+      }
+      [data-beam] {
+        --beam-angle: 60deg;
+        --beam-opacity: 1;
+      }
+      .sponsor-btn,
+      .heart-icon {
+        transition: none !important;
+      }
+      .sponsor-btn:hover .heart-icon,
+      [data-beam][data-sponsored="true"] .heart-icon {
+        transform: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div
+      data-beam="sponsor"
+      data-active=""
+      data-palette="colorful"
+      data-behavior="traveling"
+      data-sponsored="false"
+      id="beam-wrap"
+    >
+      <button type="button" class="sponsor-btn" id="sponsor-btn" aria-pressed="false">
+        <svg class="heart-icon" id="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+        </svg>
+        <span id="btn-label">Sponsor Me</span>
+      </button>
+      <div data-beam-bloom="true" aria-hidden="true"></div>
+    </div>
+
+    <p class="caption">纯白胶囊 · 像素椭圆内缘折射、1px 环形流光与柔焦高光</p>
+    <span class="sr-only" id="live-status" aria-live="polite"></span>
+  </main>
+
+  <nav class="toolbar" aria-label="光效配色与模式">
+    <div class="seg" role="group" aria-label="光效配色">
+      <button type="button" class="tool-btn" data-palette="colorful" aria-pressed="true">多彩棱镜</button>
+      <button type="button" class="tool-btn" data-palette="ocean" aria-pressed="false">深海青蓝</button>
+      <button type="button" class="tool-btn" data-palette="rose" aria-pressed="false">玫瑰粉金</button>
+    </div>
+    <span class="seg-divider" aria-hidden="true"></span>
+    <div class="seg" role="group" aria-label="流光模式">
+      <button type="button" class="tool-btn" data-behavior="traveling" aria-pressed="true">常驻流光</button>
+      <button type="button" class="tool-btn" data-behavior="hover" aria-pressed="false">悬停唤醒</button>
+      <button type="button" class="tool-btn" data-behavior="breathing" aria-pressed="false">柔和呼吸</button>
+    </div>
+  </nav>
+
+  <script>
+    (() => {
+      const wrap = document.getElementById("beam-wrap");
+      const btn = document.getElementById("sponsor-btn");
+      const label = document.getElementById("btn-label");
+      const live = document.getElementById("live-status");
+
+      let sponsored = false;
+
+      btn.addEventListener("click", () => {
+        sponsored = !sponsored;
+        wrap.dataset.sponsored = String(sponsored);
+        btn.setAttribute("aria-pressed", String(sponsored));
+        label.textContent = sponsored ? "Sponsored" : "Sponsor Me";
+        live.textContent = sponsored ? "已赞赏支持" : "已取消赞赏状态";
+      });
+
+      const paletteBtns = [...document.querySelectorAll("[data-palette]")];
+      paletteBtns.forEach((b) => {
+        b.addEventListener("click", () => {
+          paletteBtns.forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+          wrap.dataset.palette = b.dataset.palette;
+        });
+      });
+
+      const behaviorBtns = [...document.querySelectorAll("[data-behavior]")];
+      behaviorBtns.forEach((b) => {
+        b.addEventListener("click", () => {
+          behaviorBtns.forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+          wrap.dataset.behavior = b.dataset.behavior;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

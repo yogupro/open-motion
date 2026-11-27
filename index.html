@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenMotion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #0f0f10;
+      --bg: #141415;
+      --surface: #19191b;
+      --raised: #232325;
+      --hairline: rgba(237, 237, 237, 0.08);
+      --hairline-strong: rgba(237, 237, 237, 0.16);
+      --text-primary: #ededed;
+      --text-secondary: #a1a1a6;
+      --text-muted: #85858b;
+      --positive: #4cc38a;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    button, a {
+      font-family: inherit;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--text-primary);
+      outline-offset: 2px;
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 32px 32px 64px;
+    }
+
+    /* Header */
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .brand h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .brand-count {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      letter-spacing: 0.01em;
+    }
+
+    .brand p {
+      font-size: 14px;
+      line-height: 20px;
+      color: var(--text-secondary);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .seg {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 4px;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+    }
+
+    .seg button {
+      height: 28px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 20px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease), color 140ms var(--ease), transform 140ms var(--ease);
+    }
+
+    .seg button:hover {
+      color: var(--text-primary);
+    }
+
+    .seg button:active {
+      transform: scale(0.98);
+    }
+
+    .seg button[aria-pressed="true"] {
+      background: var(--raised);
+      color: var(--text-primary);
+      font-weight: 500;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .mode-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--hairline);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 20px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease), border-color 140ms var(--ease), color 140ms var(--ease), transform 140ms var(--ease);
+    }
+
+    .mode-btn:hover {
+      background: var(--raised);
+      border-color: var(--hairline-strong);
+      color: var(--text-primary);
+    }
+
+    .mode-btn:active {
+      transform: scale(0.98);
+    }
+
+    .mode-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--positive);
+      flex: none;
+    }
+
+    .mode-btn[data-mode="hover"] .mode-dot {
+      background: var(--text-muted);
+    }
+
+    /* Gallery Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 160ms var(--ease), background-color 160ms var(--ease);
+      animation: card-enter 360ms var(--ease) both;
+      animation-delay: var(--enter-delay, 0ms);
+    }
+
+    @keyframes card-enter {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card[hidden] {
+      display: none;
+    }
+
+    .card:hover {
+      border-color: var(--hairline-strong);
+    }
+
+    /* Lead Featured Specimen (first card when unfiltered) */
+    .grid[data-filtered="false"] .card.is-featured {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+    }
+
+    .grid[data-filtered="false"] .card.is-featured .stage {
+      border-bottom: 0;
+      border-right: 1px solid var(--hairline);
+    }
+
+    .grid[data-filtered="false"] .card.is-featured .meta {
+      padding: 24px;
+      justify-content: space-between;
+    }
+
+    .grid[data-filtered="false"] .card.is-featured .meta h2 {
+      font-size: 20px;
+      line-height: 28px;
+    }
+
+    .grid[data-filtered="false"] .card.is-featured .meta p {
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    /* Preview Stage */
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background: var(--stage-bg, var(--bg-deep));
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+    }
+
+    .stage iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border: 0;
+      transform-origin: 0 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 240ms var(--ease);
+      background: var(--stage-bg, transparent);
+    }
+
+    .stage.is-loaded iframe {
+      opacity: 1;
+    }
+
+    .stage.is-interactive {
+      cursor: default;
+    }
+
+    .stage.is-interactive iframe {
+      pointer-events: auto;
+    }
+
+    .stage-placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      transition: opacity 200ms var(--ease);
+    }
+
+    .stage.is-loaded .stage-placeholder {
+      opacity: 0;
+    }
+
+    .stage-placeholder span {
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: rgba(15, 15, 16, 0.84);
+      border: 1px solid var(--hairline);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--text-secondary);
+    }
+
+    /* Stage Overlay Controls */
+    .stage-overlay {
+      position: absolute;
+      inset: auto 0 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: linear-gradient(180deg, transparent 0%, rgba(15, 15, 16, 0.72) 100%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms var(--ease);
+    }
+
+    .card:hover .stage-overlay,
+    .card:focus-within .stage-overlay,
+    .stage.is-interactive .stage-overlay {
+      opacity: 1;
+    }
+
+    .stage-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .ctrl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: 1px solid var(--hairline-strong);
+      background: rgba(20, 20, 21, 0.88);
+      color: var(--text-primary);
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease), border-color 140ms var(--ease), color 140ms var(--ease), transform 140ms var(--ease);
+    }
+
+    .ctrl-btn:hover {
+      background: var(--raised);
+      border-color: rgba(237, 237, 237, 0.28);
+    }
+
+    .ctrl-btn:active {
+      transform: scale(0.98);
+    }
+
+    .ctrl-btn.is-icon-only {
+      width: 32px;
+      padding: 0;
+    }
+
+    .ctrl-btn.active {
+      background: var(--text-primary);
+      border-color: var(--text-primary);
+      color: var(--bg);
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: none;
+    }
+
+    /* Card Metadata */
+    .meta {
+      padding: 16px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .meta-top {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .specimen-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+      color: var(--text-muted);
+    }
+
+    .specimen-id {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .specimen-num {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .specimen-sep {
+      color: var(--hairline-strong);
+    }
+
+    .meta h2 {
+      font-size: 16px;
+      line-height: 22px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .meta p {
+      font-size: 13px;
+      line-height: 20px;
+      color: var(--text-secondary);
+    }
+
+    .meta-foot {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    .path-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 140ms var(--ease);
+    }
+
+    .path-link:hover {
+      color: var(--text-primary);
+    }
+
+    /* Fullscreen Inspection Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      background: rgba(15, 15, 16, 0.94);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms var(--ease);
+    }
+
+    .modal.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      height: 56px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--hairline);
+      background: var(--bg);
+      flex: none;
+    }
+
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .modal-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    .modal-title strong {
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .modal-meta {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .modal-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+    }
+
+    .modal-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: 1px solid var(--hairline);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 20px;
+      font-weight: 400;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease), border-color 140ms var(--ease), color 140ms var(--ease), transform 140ms var(--ease);
+    }
+
+    .modal-btn:hover {
+      background: var(--raised);
+      border-color: var(--hairline-strong);
+      color: var(--text-primary);
+    }
+
+    .modal-btn:active {
+      transform: scale(0.98);
+    }
+
+    .modal-btn.is-icon-only {
+      width: 32px;
+      padding: 0;
+    }
+
+    kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 4px;
+      border-radius: 4px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--bg-deep);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .modal-body {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      min-height: 0;
+    }
+
+    .modal-frame-wrap {
+      flex: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--hairline);
+      background: var(--bg-deep);
+    }
+
+    .modal-frame-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+
+    /* Responsive */
+    @media (max-width: 1100px) {
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .grid[data-filtered="false"] .card.is-featured {
+        grid-template-columns: minmax(0, 1.35fr) minmax(240px, 1fr);
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        padding: 24px 16px 48px;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .grid[data-filtered="false"] .card.is-featured {
+        display: flex;
+        flex-direction: column;
+      }
+      .grid[data-filtered="false"] .card.is-featured .stage {
+        border-right: 0;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .grid[data-filtered="false"] .card.is-featured .meta {
+        padding: 16px 20px 20px;
+      }
+      .modal-meta,
+      .modal-btn kbd {
+        display: none;
+      }
+      .modal-body {
+        padding: 8px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        animation: none;
+      }
+      * {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-row">
+          <h1>OpenMotion</h1>
+          <span class="brand-count" id="visible-count">12 / 12</span>
+        </div>
+        <p>WebGL 与物理微交互标本库</p>
+      </div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="按技术类型筛选">
+          <button type="button" data-filter="all" aria-pressed="true">全部</button>
+          <button type="button" data-filter="webgl" aria-pressed="false">WebGL</button>
+          <button type="button" data-filter="physics" aria-pressed="false">物理与控件</button>
+        </div>
+        <button type="button" class="mode-btn" id="mode-toggle" data-mode="live">
+          <span class="mode-dot" aria-hidden="true"></span>
+          <span class="label">实时运行</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="grid" id="gallery" data-filtered="false"></main>
+  </div>
+
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modal-name">
+    <div class="modal-bar">
+      <div class="modal-title">
+        <span class="modal-num" id="modal-num">01</span>
+        <strong id="modal-name"></strong>
+        <span class="modal-meta" id="modal-meta"></span>
+      </div>
+      <div class="modal-tools">
+        <button type="button" class="modal-btn is-icon-only" id="modal-prev" aria-label="上一个">
+          <svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <button type="button" class="modal-btn is-icon-only" id="modal-next" aria-label="下一个">
+          <svg class="icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="modal-btn" id="modal-reload">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <span>刷新</span>
+          <kbd>R</kbd>
+        </button>
+        <a class="modal-btn" id="modal-open" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+          <span>新窗口</span>
+        </a>
+        <button type="button" class="modal-btn" id="modal-close">
+          <span>关闭</span>
+          <kbd>Esc</kbd>
+        </button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-frame-wrap" id="modal-frame-wrap">
+        <iframe id="modal-iframe" title="动效全屏检视"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEMOS = [
+      {
+        id: 'liquid-dock',
+        title: '液化边缘吸附效果',
+        kind: 'WebGL 2D SDF',
+        category: 'webgl',
+        desc: '基于 2D SDF 平滑最小函数（smin）实现的液态融合与屏幕边缘磁吸拖拽交互',
+        src: './05-liquid-dock/index.html',
+        vw: 1280,
+        vh: 800,
+        bg: '#000000'
+      },
+      {
+        id: 'before-after-physics',
+        title: '物理拖拽 Before / After 对比组件',
+        kind: 'Physics Drag',
+        category: 'physics',
+        desc: '带惯性、弹性与物理阻尼手感的 Before / After 拖拽对比视图',
+        src: './06-before-after-physics/index.html',
+        vw: 960,
+        vh: 600,
+        bg: '#0c1420'
+      },
+      {
+        id: 'patient-funnel-webgl',
+        title: '患者流转漏斗',
+        kind: 'WebGL Particles',
+        category: 'webgl',
+        desc: 'WebGL 粒子流转与漏斗转化微交互动效',
+        src: './07-patient-funnel-webgl/index.html',
+        vw: 820,
+        vh: 512,
+        bg: '#040406'
+      },
+      {
+        id: 'hsn-webgl',
+        title: 'HSN 状态球',
+        kind: 'WebGL 3D Orb',
+        category: 'webgl',
+        desc: '程序化 3D 状态球与粒子场，支持 6 种运行状态平滑切换',
+        src: './02-agent-orb/index.html',
+        vw: 920,
+        vh: 575,
+        bg: '#fcfcfc'
+      },
+      {
+        id: 'codex-ultra-slider',
+        title: 'Codex Ultra 滑轨',
+        kind: 'Tactile Control',
+        category: 'physics',
+        desc: '多档位推理强度滑轨、粒子爆发与速度模式切换',
+        src: './01-codex-ultra-slider/codex-ultra-slider.html',
+        vw: 360,
+        vh: 225,
+        bg: '#f8f9fb'
+      },
+      {
+        id: 'webgl-loading',
+        title: '有谷大脑 · 知识库归档导出',
+        kind: 'WebGL Shader',
+        category: 'webgl',
+        desc: '知识库归档导出场景下的 WebGL 氛围加载动效',
+        src: './03-webgl-loading/archive-export.html',
+        vw: 1280,
+        vh: 800,
+        bg: '#f8f9fb'
+      },
+      {
+        id: 'kippe-progress-motion',
+        title: '进度线的暂停与回弹',
+        kind: 'SVG Spring',
+        category: 'physics',
+        desc: '可中断 SVG 弹簧曲线的进度暂停、状态切换与弹性回弹',
+        src: './08-kippe-progress-motion/index.html',
+        vw: 880,
+        vh: 550,
+        bg: '#f2f3f6'
+      },
+      {
+        id: 'cutout-particles-webgl',
+        title: '抠图粒子消散与高光描边',
+        kind: 'WebGL2 Particles',
+        category: 'webgl',
+        desc: '移植自 yogu-word 的主体抠图动效：WebGL2 实例化贴纸方块掀飞消散、双层轮廓流光高光描边与贴纸白边弹起',
+        src: './09-cutout-particles-webgl/index.html',
+        vw: 960,
+        vh: 640,
+        bg: '#0c0d10'
+      },
+      {
+        id: 'tactile-button',
+        title: '流光棱镜微交互按钮',
+        kind: 'Border Beam',
+        category: 'physics',
+        desc: '纯白胶囊按钮上的三层 CSS Houdini 棱镜流光边框（内缘微光 + 1px 环形流光 + 柔焦光晕）与弹簧心形微交互',
+        src: './10-tactile-button/index.html',
+        vw: 880,
+        vh: 550,
+        bg: '#ffffff'
+      },
+      {
+        id: 'swipe-send-webgl',
+        title: '上滑转账',
+        kind: 'WebGL 着色器',
+        category: 'webgl',
+        desc: '从屏幕底部上滑，蓝紫色光浪托起发送箭头，到账回执亮起柔光边框。',
+        src: './04-swipe-send/index.html',
+        previewSrc: './04-swipe-send/index.html?preview',
+        vw: 880,
+        vh: 550,
+        bg: '#09090d'
+      },
+      {
+        id: 'anuar-node-connections',
+        title: '文档索引工作流',
+        kind: 'WebGL + Vue Flow',
+        category: 'webgl',
+        desc: '点击「运行工作流」，数据包从文档接入节点出发，经过内容解析，最后写入索引。',
+        src: './11-anuar-node-connections/index.html',
+        vw: 1146,
+        vh: 720,
+        bg: '#000000'
+      },
+      {
+        id: 'voice-particles-webgl',
+        title: '语音助手 · 粒子声波',
+        kind: 'WebGL 粒子',
+        category: 'webgl',
+        desc: '两个面板可独立开启语音。点击波形按钮，麦克风从液桥中分离，底边点阵随聆听节拍起伏。',
+        src: './12-voice-particles-webgl/index.html',
+        vw: 1600,
+        vh: 1080,
+        bg: '#050505'
+      }
+    ];
+
+    const gallery = document.getElementById('gallery');
+    const visibleCountEl = document.getElementById('visible-count');
+    const modeToggle = document.getElementById('mode-toggle');
+    const filterButtons = [...document.querySelectorAll('[data-filter]')];
+
+    let previewMode = 'live';
+    let modalIndex = -1;
+    const cardEntries = [];
+
+    const pad2 = (n) => String(n).padStart(2, '0');
+
+    function mountIframe(entry) {
+      if (entry.iframe) return;
+      const iframe = document.createElement('iframe');
+      iframe.src = entry.demo.previewSrc || entry.demo.src;
+      iframe.title = entry.demo.title;
+      iframe.width = entry.demo.vw;
+      iframe.height = entry.demo.vh;
+      iframe.loading = 'lazy';
+      iframe.addEventListener('load', () => {
+        entry.stage.classList.add('is-loaded');
+      }, { once: true });
+      entry.stage.prepend(iframe);
+      entry.iframe = iframe;
+      scaleIframe(entry);
+    }
+
+    function unmountIframe(entry) {
+      if (!entry.iframe) return;
+      entry.iframe.remove();
+      entry.iframe = null;
+      entry.stage.classList.remove('is-loaded', 'is-interactive');
+      entry.interactBtn.classList.remove('active');
+      entry.interactBtn.querySelector('span').textContent = '卡片交互';
+    }
+
+    function scaleIframe(entry) {
+      if (!entry.iframe) return;
+      const rect = entry.stage.getBoundingClientRect();
+      if (!rect.width) return;
+      const scale = rect.width / entry.demo.vw;
+      entry.iframe.style.width = entry.demo.vw + 'px';
+      entry.iframe.style.height = entry.demo.vh + 'px';
+      entry.iframe.style.transform = `scale(${scale})`;
+    }
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const roEntry of entries) {
+        const cardEntry = roEntry.target._cardEntry;
+        if (cardEntry) scaleIframe(cardEntry);
+      }
+    });
+
+    const intersectionObserver = new IntersectionObserver((entries) => {
+      for (const ioEntry of entries) {
+        const cardEntry = ioEntry.target._cardEntry;
+        if (!cardEntry) continue;
+        cardEntry.inView = ioEntry.isIntersecting;
+        if (previewMode === 'live' && ioEntry.isIntersecting && !cardEntry.card.hidden) {
+          mountIframe(cardEntry);
+        }
+      }
+    }, { rootMargin: '160px 0px' });
+
+    DEMOS.forEach((demo, index) => {
+      const num = pad2(index + 1);
+      const card = document.createElement('article');
+      card.className = index === 0 ? 'card is-featured' : 'card';
+      card.dataset.category = demo.category;
+      card.style.setProperty('--enter-delay', `${Math.min(index, 5) * 40}ms`);
+
+      card.innerHTML = `
+        <div class="stage" style="--stage-bg: ${demo.bg}">
+          <div class="stage-placeholder"><span>加载预览</span></div>
+          <div class="stage-overlay">
+            <div class="stage-actions">
+              <button type="button" class="ctrl-btn js-interact">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                <span>卡片交互</span>
+              </button>
+            </div>
+            <div class="stage-actions">
+              <button type="button" class="ctrl-btn js-expand">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                <span>全屏检视</span>
+              </button>
+              <a class="ctrl-btn is-icon-only" href="${demo.src}" target="_blank" rel="noopener" aria-label="在新窗口打开 ${demo.title}">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="meta-top">
+            <div class="specimen-bar">
+              <span class="specimen-id">
+                <span class="specimen-num">${num}</span>
+                <span class="specimen-sep">/</span>
+                <span>${demo.kind}</span>
+              </span>
+              <span>${demo.vw}×${demo.vh}</span>
+            </div>
+            <h2>${demo.title}</h2>
+            <p>${demo.desc}</p>
+          </div>
+          <div class="meta-foot">
+            <a class="path-link" href="${demo.src}" target="_blank" rel="noopener">${demo.src.slice(2)}</a>
+            <span>点击全屏</span>
+          </div>
+        </div>
+      `;
+
+      const stage = card.querySelector('.stage');
+      const placeholderText = card.querySelector('.stage-placeholder span');
+      const interactBtn = card.querySelector('.js-interact');
+      const expandBtn = card.querySelector('.js-expand');
+
+      const entry = {
+        index,
+        num,
+        demo,
+        card,
+        stage,
+        placeholderText,
+        interactBtn,
+        iframe: null,
+        inView: false
+      };
+      stage._cardEntry = entry;
+      cardEntries.push(entry);
+
+      stage.addEventListener('click', (e) => {
+        if (e.target.closest('.stage-actions')) return;
+        if (stage.classList.contains('is-interactive')) return;
+        openModal(index);
+      });
+
+      expandBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openModal(index);
+      });
+
+      interactBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mountIframe(entry);
+        const next = !stage.classList.contains('is-interactive');
+        stage.classList.toggle('is-interactive', next);
+        interactBtn.classList.toggle('active', next);
+        interactBtn.querySelector('span').textContent = next ? '退出交互' : '卡片交互';
+      });
+
+      card.addEventListener('mouseenter', () => {
+        if (previewMode === 'hover') mountIframe(entry);
+      });
+
+      card.addEventListener('mouseleave', () => {
+        if (previewMode === 'hover' && !stage.classList.contains('is-interactive')) {
+          unmountIframe(entry);
+        }
+      });
+
+      gallery.appendChild(card);
+      resizeObserver.observe(stage);
+      intersectionObserver.observe(stage);
+    });
+
+    function applyFilter(filter) {
+      gallery.dataset.filtered = String(filter !== 'all');
+      let count = 0;
+      for (const entry of cardEntries) {
+        const match = filter === 'all' || entry.demo.category === filter;
+        entry.card.hidden = !match;
+        if (match) {
+          count++;
+          if (previewMode === 'live' && entry.inView) mountIframe(entry);
+        }
+      }
+      visibleCountEl.textContent = `${pad2(count)} / ${pad2(DEMOS.length)}`;
+      filterButtons.forEach((btn) => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.filter === filter));
+      });
+    }
+
+    filterButtons.forEach((btn) => {
+      btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+    });
+
+    modeToggle.addEventListener('click', () => {
+      previewMode = previewMode === 'live' ? 'hover' : 'live';
+      modeToggle.dataset.mode = previewMode;
+      modeToggle.querySelector('.label').textContent =
+        previewMode === 'live' ? '实时运行' : '悬停激活';
+
+      for (const entry of cardEntries) {
+        if (previewMode === 'live') {
+          entry.placeholderText.textContent = '加载预览';
+          if (entry.inView && !entry.card.hidden) mountIframe(entry);
+        } else {
+          entry.placeholderText.textContent = '悬停激活预览';
+          unmountIframe(entry);
+        }
+      }
+    });
+
+    const modal = document.getElementById('modal');
+    const modalNum = document.getElementById('modal-num');
+    const modalName = document.getElementById('modal-name');
+    const modalMeta = document.getElementById('modal-meta');
+    const modalOpen = document.getElementById('modal-open');
+    const modalIframe = document.getElementById('modal-iframe');
+    const modalFrameWrap = document.getElementById('modal-frame-wrap');
+
+    function getVisibleIndices() {
+      return cardEntries.filter((e) => !e.card.hidden).map((e) => e.index);
+    }
+
+    function openModal(index) {
+      modalIndex = index;
+      const demo = DEMOS[index];
+      modalNum.textContent = pad2(index + 1);
+      modalName.textContent = demo.title;
+      modalMeta.textContent = `${demo.kind} · ${demo.vw}×${demo.vh}`;
+      modalOpen.href = demo.src;
+      modalFrameWrap.style.background = demo.bg;
+      modalIframe.src = demo.src;
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeModal() {
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      modalIframe.src = 'about:blank';
+      modalIndex = -1;
+    }
+
+    function stepModal(delta) {
+      if (modalIndex < 0) return;
+      const list = getVisibleIndices();
+      if (!list.length) return;
+      const pos = list.indexOf(modalIndex);
+      const nextPos = (pos + delta + list.length) % list.length;
+      openModal(list[nextPos]);
+    }
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-prev').addEventListener('click', () => stepModal(-1));
+    document.getElementById('modal-next').addEventListener('click', () => stepModal(1));
+    document.getElementById('modal-reload').addEventListener('click', () => {
+      if (modalIndex >= 0) modalIframe.src = DEMOS[modalIndex].src;
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (modalIndex < 0) return;
+      if (e.key === 'Escape') closeModal();
+      else if (e.key === 'ArrowLeft') stepModal(-1);
+      else if (e.key === 'ArrowRight') stepModal(1);
+      else if (e.key === 'r' || e.key === 'R') modalIframe.src = DEMOS[modalIndex].src;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>液化边缘吸附效果 Demo — WebGL 2D SDF (smin)</title>
+  <style>
+    :root {
+      --bezel: 18px;
+      --screen-radius: 16px;
+      --glass-bg: rgba(255, 250, 245, 0.82);
+      --glass-border: rgba(255, 255, 255, 0.7);
+      --ink: #1b1917;
+      --ink-muted: #6e6760;
+      --accent: #18181b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+    }
+
+    /* 外层模拟 MacBook 物理纯黑边框 */
+    .bezel-shell {
+      position: fixed;
+      inset: 0;
+      padding: var(--bezel);
+      background: #000;
+      display: flex;
+    }
+
+    .bezel-shell.full-bleed {
+      padding: 0;
+      --screen-radius: 0px;
+    }
+
+    /* 屏幕内部交互舞台 */
+    .stage {
+      position: relative;
+      flex: 1;
+      border-radius: var(--screen-radius);
+      overflow: hidden;
+      /* 接近视频中的暖杏色到浅灰蓝 macOS 壁纸氛围 */
+      background:
+        radial-gradient(120% 85% at 78% 82%, #f4b792 0%, rgba(244, 183, 146, 0.55) 36%, transparent 70%),
+        radial-gradient(95% 80% at 22% 18%, #dce5ee 0%, rgba(215, 224, 234, 0.65) 45%, transparent 78%),
+        linear-gradient(155deg, #d7dde6 0%, #e7dcd3 48%, #f0c2a0 100%);
+      touch-action: none;
+    }
+
+    /* 背景装饰窗口（营造真实桌面层次） */
+    .mock-window {
+      position: absolute;
+      left: 5%;
+      top: 10%;
+      width: min(440px, 52vw);
+      height: min(460px, 64vh);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 24px 60px rgba(32, 24, 18, 0.10), 0 2px 8px rgba(32, 24, 18, 0.05);
+      padding: 18px 20px;
+      pointer-events: none;
+      opacity: 0.86;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .mock-dots {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .mock-dots span {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #e5e2dc;
+    }
+
+    .mock-dots span:nth-child(1) { background: #ff5f57; }
+    .mock-dots span:nth-child(2) { background: #febc2e; }
+    .mock-dots span:nth-child(3) { background: #28c840; }
+
+    .mock-hero {
+      height: 136px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #1b3c73 0%, #3d6ca8 46%, #a9cce3 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .mock-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 76% 78%, rgba(255, 255, 255, 0.65), transparent 58%);
+    }
+
+    .mock-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .mock-line {
+      height: 11px;
+      border-radius: 6px;
+      background: rgba(27, 25, 23, 0.08);
+    }
+
+    .mock-line.w70 { width: 70%; }
+    .mock-line.w92 { width: 92%; }
+    .mock-line.w55 { width: 55%; }
+    .mock-line.w82 { width: 82%; }
+
+    /* =============================================
+       底层：WebGL 2D SDF 液化背景渲染层
+       ============================================= */
+    #gl-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* =============================================
+       上层：前景清晰内容与交互命中层（不经滤镜）
+       ============================================= */
+    #pill-hit {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      will-change: transform, width, height;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #pill-hit.dragging {
+      cursor: grabbing;
+    }
+
+    .pill-icon-wrap {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    #pill-hit.dragging .pill-icon-wrap {
+      transform: scale(0.94);
+    }
+
+    .ring-svg {
+      width: 28px;
+      height: 28px;
+      overflow: visible;
+    }
+
+    .ring-comet {
+      transition: opacity 0.25s ease;
+    }
+
+    .ring-comet.idle {
+      opacity: 0;
+    }
+
+    .pill-count {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      transform: translateY(0.5px);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* =============================================
+       点击后由胶囊原地变形展开的毛玻璃面板（还原视频 00:04 / 00:09）
+       ============================================= */
+    .popover {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 32;
+      display: none;
+      overflow: hidden;
+      isolation: isolate;
+      border-radius: 24px;
+      background: rgba(252, 248, 243, 0.88);
+      backdrop-filter: blur(28px) saturate(1.35);
+      -webkit-backdrop-filter: blur(28px) saturate(1.35);
+      border: 1px solid rgba(255, 255, 255, 0.84);
+      box-shadow:
+        0 28px 64px rgba(18, 14, 10, 0.18),
+        0 4px 14px rgba(18, 14, 10, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.92);
+      pointer-events: none;
+    }
+
+    .popover-inner {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 320px;
+      padding: 16px;
+      transform: translate(-50%, -50%);
+    }
+
+    .popover-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .popover-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .popover-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 99px;
+      background: rgba(24, 24, 27, 0.08);
+      color: var(--ink-muted);
+    }
+
+    .popover-close {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(24, 24, 27, 0.06);
+      color: var(--ink-muted);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 15px;
+      line-height: 1;
+      transition: background 0.15s ease;
+    }
+
+    .popover-close:hover {
+      background: rgba(24, 24, 27, 0.12);
+      color: var(--ink);
+    }
+
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .task-item:hover {
+      background: rgba(24, 24, 27, 0.05);
+    }
+
+    .task-check {
+      width: 17px;
+      height: 17px;
+      margin-top: 1px;
+      border-radius: 50%;
+      border: 1.8px solid rgba(24, 24, 27, 0.28);
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      transition: all 0.18s ease;
+    }
+
+    .task-item.done .task-check {
+      background: #18181b;
+      border-color: #18181b;
+    }
+
+    .task-item.done .task-check::after {
+      content: "";
+      width: 5px;
+      height: 8px;
+      border: solid #fff;
+      border-width: 0 1.8px 1.8px 0;
+      transform: rotate(45deg) translate(-0.5px, -0.5px);
+    }
+
+    .task-body {
+      min-width: 0;
+    }
+
+    .task-name {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--ink);
+      transition: opacity 0.18s ease;
+    }
+
+    .task-desc {
+      font-size: 11.5px;
+      color: var(--ink-muted);
+      line-height: 1.35;
+      margin-top: 2px;
+    }
+
+    .task-item.done .task-name,
+    .task-item.done .task-desc {
+      opacity: 0.42;
+      text-decoration: line-through;
+    }
+
+    /* =============================================
+       左上角参数调试浮层（可折叠）
+       ============================================= */
+    .controls {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 40;
+      width: 268px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.76);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      box-shadow: 0 10px 30px rgba(24, 20, 16, 0.10);
+      padding: 12px 14px;
+      font-size: 12px;
+      transition: width 0.2s ease, padding 0.2s ease;
+    }
+
+    .controls.collapsed {
+      width: auto;
+      padding: 8px 12px;
+    }
+
+    .controls.collapsed .ctrl-body {
+      display: none;
+    }
+
+    .ctrl-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .ctrl-title {
+      font-weight: 700;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #18181b;
+    }
+
+    .ctrl-toggle {
+      border: none;
+      background: rgba(24, 24, 27, 0.07);
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .ctrl-toggle:hover {
+      background: rgba(24, 24, 27, 0.13);
+    }
+
+    .ctrl-body {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 9px;
+      border-radius: 9px;
+      background: rgba(24, 24, 27, 0.055);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: #3f3b37;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--ink-muted);
+      font-size: 11.5px;
+    }
+
+    .slider-label strong {
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 600;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #18181b;
+      height: 4px;
+      cursor: pointer;
+    }
+
+    .ctrl-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .btn {
+      border: 1px solid rgba(24, 24, 27, 0.12);
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--ink);
+      border-radius: 9px;
+      padding: 6px 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn:hover {
+      background: #fff;
+    }
+
+    .btn.primary {
+      background: #18181b;
+      color: #fff;
+      border-color: #18181b;
+    }
+
+    .btn.primary:hover {
+      background: #2c2c31;
+    }
+
+    /* 初次引导气泡 */
+    .hint {
+      position: absolute;
+      left: 50%;
+      bottom: 66px;
+      transform: translateX(-50%);
+      z-index: 25;
+      padding: 7px 14px;
+      border-radius: 99px;
+      background: rgba(24, 24, 27, 0.78);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      pointer-events: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      white-space: nowrap;
+    }
+
+    .hint.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(6px);
+    }
+
+    @media (max-width: 640px) {
+      .mock-window { display: none; }
+      .controls { width: 236px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bezel-shell" id="bezel-shell">
+    <div class="stage" id="stage">
+      <!-- 桌面背景装饰卡片 -->
+      <div class="mock-window" aria-hidden="true">
+        <div class="mock-dots"><span></span><span></span><span></span></div>
+        <div class="mock-hero"></div>
+        <div class="mock-lines">
+          <div class="mock-line w70"></div>
+          <div class="mock-line w92"></div>
+          <div class="mock-line w82"></div>
+          <div class="mock-line w55"></div>
+          <div class="mock-line w92"></div>
+          <div class="mock-line w70"></div>
+        </div>
+      </div>
+
+      <!-- WebGL 2D SDF (smin) 液化渲染画布 -->
+      <canvas id="gl-canvas"></canvas>
+
+      <!-- 前景清晰层：图标、流光圆环、点击与拖拽命中区 -->
+      <div id="pill-hit" role="button" tabindex="0" aria-label="液态悬浮胶囊，拖拽吸附边缘或点击展开">
+        <div class="pill-icon-wrap">
+          <svg class="ring-svg" viewBox="0 0 28 28" aria-hidden="true">
+            <defs>
+              <!-- 顶部留出 3 个圆点的缺口遮罩（userSpaceOnUse 覆盖完整 28x28，不随旋转裁切） -->
+              <mask id="ring-gap-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="28" height="28">
+                <path d="M 20.15 4.88 A 11 11 0 1 1 7.85 4.88"
+                  fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" />
+              </mask>
+              <!-- 顺时针渐变流光拖尾（从透明尾端渐亮到纯白头部） -->
+              <linearGradient id="comet-grad" x1="11.15" y1="3.38" x2="25" y2="14" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
+                <stop offset="42%" stop-color="#ffffff" stop-opacity="0.24" />
+                <stop offset="78%" stop-color="#ffffff" stop-opacity="0.78" />
+                <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
+              </linearGradient>
+            </defs>
+            <!-- 细微暗底环（顶部 12 点位置留出对称缺口） -->
+            <path d="M 20.15 4.88 A 11 11 0 1 1 7.85 4.88"
+              fill="none" stroke="rgba(255,255,255,0.24)" stroke-width="1.35" stroke-linecap="round" />
+            <!-- 顺时针流动的高光流光弧 -->
+            <g mask="url(#ring-gap-mask)">
+              <g class="ring-comet" id="ring-comet">
+                <path d="M 11.15 3.38 A 11 11 0 0 1 25.00 14.00"
+                  fill="none" stroke="url(#comet-grad)" stroke-width="1.45" stroke-linecap="round" />
+              </g>
+            </g>
+            <!-- 顶部正中对称的 3 个状态圆点 -->
+            <circle cx="10.42" cy="3.60" r="1.2" fill="#ffffff" />
+            <circle cx="14.00" cy="3.00" r="1.2" fill="#ffffff" />
+            <circle cx="17.58" cy="3.60" r="1.2" fill="#ffffff" />
+          </svg>
+          <span class="pill-count" id="pill-count">5</span>
+        </div>
+      </div>
+
+      <!-- 点击胶囊原地变形展开的悬浮面板 -->
+      <div class="popover" id="popover" role="dialog" aria-label="快捷任务面板">
+        <div class="popover-inner" id="popover-inner">
+          <div class="popover-header">
+            <div class="popover-title">
+              <span>side blob</span>
+              <span class="popover-badge" id="popover-badge">5 待办</span>
+            </div>
+            <button class="popover-close" id="popover-close" aria-label="关闭">&times;</button>
+          </div>
+          <div class="task-list" id="task-list"></div>
+        </div>
+      </div>
+
+      <!-- 引导提示 -->
+      <div class="hint" id="hint">向上拖离底边体验「拉丝断开」，拖向任意四条黑边自动吸附 · 点击展开</div>
+
+      <!-- 实时调试面板 -->
+      <aside class="controls" id="controls">
+        <div class="ctrl-head">
+          <div class="ctrl-title">
+            <span class="status-dot"></span>
+            <span>液化吸附调试</span>
+          </div>
+          <button class="ctrl-toggle" id="ctrl-toggle">收起</button>
+        </div>
+
+        <div class="ctrl-body">
+          <div class="status-pill">
+            <span id="state-text">docked: bottom</span>
+            <span id="gap-text">gap 0px</span>
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>液化融合半径 k</span>
+              <strong id="val-k">24 px</strong>
+            </div>
+            <input id="range-k" type="range" min="12" max="64" step="1" value="24" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>拉断阈值（阻尼张力）</span>
+              <strong id="val-detach">36 px</strong>
+            </div>
+            <input id="range-detach" type="range" min="24" max="96" step="1" value="36" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>边缘磁吸距离</span>
+              <strong id="val-snap">24 px</strong>
+            </div>
+            <input id="range-snap" type="range" min="10" max="56" step="1" value="24" />
+          </div>
+
+          <div class="ctrl-actions">
+            <button class="btn primary" id="btn-demo">自动演示</button>
+            <button class="btn" id="btn-bezel">切换黑边</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // =========================================================
+      // 1. 可调参数与形状预设
+      // =========================================================
+      const config = {
+        smoothK: 24,        // SDF smin 融合半径 (px)
+        detachThreshold: 36,// 从吸附态拉断所需的鼠标拖拽距离 (px)
+        snapThreshold: 24,  // 拖动时触发自动贴边吸附的边缘距离 (px)
+        embedDepth: 5,      // 贴边时嵌入黑边的像素深度，让外凹圆角更自然
+      };
+
+      const SHAPES = {
+        floating: { w: 68, h: 36, r: 18 },
+        horizontalEdge: { w: 46, h: 38, r: 13 }, // 贴上/下边
+        verticalEdge: { w: 38, h: 50, r: 13 },   // 贴左/右边
+      };
+
+      const TASKS = [
+        { name: '2D SDF + smin 平滑并集', desc: '圆角矩形与四边距离场融合，自动生成外凹圆角与拉断残峰', done: false },
+        { name: '滞回磁吸状态机', desc: '拉断阈值 > 吸附阈值，彻底消除临界边界高频抖动', done: false },
+        { name: '拉离阻尼与瞬间释放', desc: '贴边拖拽先产生粘连抵抗，越过阈值后弹簧追赶鼠标', done: false },
+        { name: '横竖胶囊自适应变形', desc: '底边 / 浮空 / 侧边之间用弹簧插值平滑过渡宽高和圆角', done: false },
+        { name: '背景与前景分层渲染', desc: '液化效果仅作用于底层轮廓，图标与数字始终锐利清晰', done: false },
+      ];
+
+      // =========================================================
+      // 2. DOM 引用
+      // =========================================================
+      const bezelShell = document.getElementById('bezel-shell');
+      const stage = document.getElementById('stage');
+      const glCanvas = document.getElementById('gl-canvas');
+      const pillHit = document.getElementById('pill-hit');
+      const pillCount = document.getElementById('pill-count');
+      const ringComet = document.getElementById('ring-comet');
+      const popover = document.getElementById('popover');
+      const popoverInner = document.getElementById('popover-inner');
+      const popoverBadge = document.getElementById('popover-badge');
+      const popoverClose = document.getElementById('popover-close');
+      const taskList = document.getElementById('task-list');
+      const hint = document.getElementById('hint');
+      const stateText = document.getElementById('state-text');
+      const gapText = document.getElementById('gap-text');
+
+      // =========================================================
+      // 3. 弹簧物理工具（半隐式欧拉 + 子步进，120Hz 同样稳定）
+      // =========================================================
+      class Spring {
+        constructor(value, stiffness = 360, damping = 26) {
+          this.x = value;
+          this.v = 0;
+          this.target = value;
+          this.stiffness = stiffness;
+          this.damping = damping;
+        }
+        set(value, snap = false) {
+          this.target = value;
+          if (snap) {
+            this.x = value;
+            this.v = 0;
+          }
+        }
+        step(dt) {
+          const substeps = 3;
+          const h = dt / substeps;
+          for (let i = 0; i < substeps; i++) {
+            const force = -this.stiffness * (this.x - this.target) - this.damping * this.v;
+            this.v += force * h;
+            this.x += this.v * h;
+          }
+          return this.x;
+        }
+      }
+
+      // =========================================================
+      // 4. WebGL 2D SDF 渲染器
+      // =========================================================
+      let gl = null;
+      let glUniforms = null;
+
+      function initWebGL() {
+        gl = glCanvas.getContext('webgl', {
+          alpha: true,
+          antialias: false,
+          premultipliedAlpha: true,
+          powerPreference: 'high-performance',
+        });
+        if (!gl) return false;
+
+        const vsSource = `
+          attribute vec2 aPos;
+          void main() {
+            gl_Position = vec4(aPos, 0.0, 1.0);
+          }
+        `;
+
+        const fsSource = `
+          precision highp float;
+
+          uniform vec2  uSize;        // 舞台逻辑尺寸 (CSS px)
+          uniform vec2  uCanvasRes;   // 画布物理像素尺寸
+          uniform float uDpr;         // devicePixelRatio
+          uniform float uStageRadius; // 舞台内圆角半径
+          uniform vec2  uPillPos;     // 胶囊中心 (CSS px, 左上为原点)
+          uniform vec2  uPillHalf;    // 胶囊半宽半高
+          uniform float uPillRadius;  // 胶囊圆角半径
+          uniform float uSmoothK;     // smin 融合半径 k
+          uniform float uPillOpacity; // 胶囊原地展开为毛玻璃面板时的淡出权重
+
+          // 圆角矩形精确 SDF
+          float sdRoundedBox(vec2 p, vec2 b, float r) {
+            vec2 q = abs(p) - b + r;
+            return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+          }
+
+          // 二次多项式平滑并集 (Polynomial Smooth Minimum)
+          // 当间距 g < k/2 时拉出液桥；g = k/2 时从最细处拉断；
+          // k/2 < g < k 时墙边保留小残峰并平滑缩回。
+          float smin(float a, float b, float k) {
+            if (k <= 0.001) return min(a, b);
+            float h = max(k - abs(a - b), 0.0) / k;
+            return min(a, b) - h * h * k * 0.25;
+          }
+
+          void main() {
+            // 将 WebGL 左下角物理像素坐标精确映射到左上角 CSS 逻辑像素坐标
+            vec2 p = vec2(gl_FragCoord.x, uCanvasRes.y - gl_FragCoord.y) / uCanvasRes * uSize;
+
+            // 1) 胶囊距离场（内部 < 0，外部 > 0）
+            float r = min(uPillRadius, min(uPillHalf.x, uPillHalf.y));
+            float dPill = sdRoundedBox(p - uPillPos, uPillHalf, r);
+
+            // 2) 四边黑框距离场：对屏幕圆角矩形取反，屏内为正，黑边外为负
+            float dWall = -sdRoundedBox(p - uSize * 0.5, uSize * 0.5, uStageRadius);
+
+            // 3) 液态融合与展开过渡混合（保持屏幕圆角黑边常驻，仅淡出胶囊与液桥）
+            float dScene = smin(dPill, dWall, uSmoothK);
+            float aa = 0.75 / max(uDpr, 1.0);
+            float aScene = 1.0 - smoothstep(-aa, aa, dScene);
+            float aWall  = 1.0 - smoothstep(-aa, aa, dWall);
+            float alpha  = mix(aWall, aScene, uPillOpacity);
+
+            // 仅在纯黑形状存在处输出不透明度（premultiplied alpha = 0,0,0,alpha）
+            gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
+          }
+        `;
+
+        function compile(type, src) {
+          const s = gl.createShader(type);
+          gl.shaderSource(s, src);
+          gl.compileShader(s);
+          if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            console.error(gl.getShaderInfoLog(s));
+            return null;
+          }
+          return s;
+        }
+
+        const vs = compile(gl.VERTEX_SHADER, vsSource);
+        const fs = compile(gl.FRAGMENT_SHADER, fsSource);
+        if (!vs || !fs) return false;
+
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+          console.error(gl.getProgramInfoLog(prog));
+          return false;
+        }
+
+        gl.useProgram(prog);
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+          gl.STATIC_DRAW
+        );
+
+        const loc = gl.getAttribLocation(prog, 'aPos');
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+        glUniforms = {
+          uSize: gl.getUniformLocation(prog, 'uSize'),
+          uCanvasRes: gl.getUniformLocation(prog, 'uCanvasRes'),
+          uDpr: gl.getUniformLocation(prog, 'uDpr'),
+          uStageRadius: gl.getUniformLocation(prog, 'uStageRadius'),
+          uPillPos: gl.getUniformLocation(prog, 'uPillPos'),
+          uPillHalf: gl.getUniformLocation(prog, 'uPillHalf'),
+          uPillRadius: gl.getUniformLocation(prog, 'uPillRadius'),
+          uSmoothK: gl.getUniformLocation(prog, 'uSmoothK'),
+          uPillOpacity: gl.getUniformLocation(prog, 'uPillOpacity'),
+        };
+
+        return true;
+      }
+
+      // =========================================================
+      // 5. 核心状态机与物理状态
+      // =========================================================
+      let W = 0, H = 0, dpr = 1;
+
+      const state = {
+        mode: 'docked',      // 'docked' | 'detaching' | 'floating'
+        edge: 'bottom',      // 'top' | 'bottom' | 'left' | 'right' | null
+        dragging: false,
+        pointerId: null,
+        downPos: { x: 0, y: 0 },
+        lastPointer: { x: 0, y: 0 },
+        pointerVel: { x: 0, y: 0 },
+        dragMoved: false,
+        dockAnchor: { x: 0, y: 0 },
+        popoverOpen: false,
+        hintDismissed: false,
+        autoDemo: null,
+        justDetachedEdge: null,
+        justDetachedUntil: 0,
+      };
+
+      const sprX = new Spring(0, 380, 27);
+      const sprY = new Spring(0, 380, 27);
+      const sprW = new Spring(SHAPES.horizontalEdge.w, 340, 25);
+      const sprH = new Spring(SHAPES.horizontalEdge.h, 340, 25);
+      const sprR = new Spring(SHAPES.horizontalEdge.r, 340, 25);
+      // 静止贴边时采用约 0.62*k 的融合半径，避免外端圆角膨胀，同时保留丝滑外凹角
+      const dockedK = () => Math.min(config.smoothK * 0.62, 31);
+      const sprK = new Spring(dockedK(), 240, 24);
+      // 胶囊原地变形展开为毛玻璃面板的弹簧进度 (0=胶囊, 1=面板)
+      const sprOpen = new Spring(0, 310, 26);
+      const panelRect = { left: 0, top: 0, w: 320, h: 356 };
+
+      function getShapeForState(mode, edge) {
+        if (mode === 'floating') return SHAPES.floating;
+        return edge === 'left' || edge === 'right'
+          ? SHAPES.verticalEdge
+          : SHAPES.horizontalEdge;
+      }
+
+      function clampParallel(edge, val) {
+        const margin = 58;
+        if (edge === 'top' || edge === 'bottom') {
+          return Math.max(margin, Math.min(W - margin, val));
+        }
+        return Math.max(margin, Math.min(H - margin, val));
+      }
+
+      function getDockedCenter(edge, along) {
+        const shape = getShapeForState('docked', edge);
+        const embed = config.embedDepth;
+        const p = clampParallel(edge, along);
+        switch (edge) {
+          case 'bottom': return { x: p, y: H - shape.h / 2 + embed };
+          case 'top':    return { x: p, y: shape.h / 2 - embed };
+          case 'right':  return { x: W - shape.w / 2 + embed, y: p };
+          case 'left':   return { x: shape.w / 2 - embed, y: p };
+        }
+      }
+
+      function getEdgeVector(edge) {
+        // 指向屏幕内部的单位法向量
+        switch (edge) {
+          case 'bottom': return { nx: 0, ny: -1 };
+          case 'top':    return { nx: 0, ny: 1 };
+          case 'right':  return { nx: -1, ny: 0 };
+          case 'left':   return { nx: 1, ny: 0 };
+        }
+      }
+
+      function setShapeTarget(w, h, r) {
+        sprW.set(w);
+        sprH.set(h);
+        sprR.set(r);
+      }
+
+      function dockTo(edge, along, instant = false) {
+        state.mode = 'docked';
+        state.edge = edge;
+        const shape = getShapeForState('docked', edge);
+        const pos = getDockedCenter(edge, along);
+        sprX.set(pos.x, instant);
+        sprY.set(pos.y, instant);
+        sprW.set(shape.w, instant);
+        sprH.set(shape.h, instant);
+        sprR.set(shape.r, instant);
+        sprK.set(dockedK(), instant);
+        state.dockAnchor = { x: pos.x, y: pos.y };
+      }
+
+      function findNearestEdge(x, y, halfW, halfH) {
+        const edges = [
+          { edge: 'left',   dist: x - halfW,     along: y },
+          { edge: 'right',  dist: W - x - halfW, along: y },
+          { edge: 'top',    dist: y - halfH,     along: x },
+          { edge: 'bottom', dist: H - y - halfH, along: x },
+        ];
+        edges.sort((a, b) => a.dist - b.dist);
+        return edges[0];
+      }
+
+      function dismissHint() {
+        if (!state.hintDismissed) {
+          state.hintDismissed = true;
+          hint.classList.add('hidden');
+        }
+      }
+
+      // =========================================================
+      // 6. 交互指针逻辑（含阻尼拉丝、滞回拉断、磁吸、轻抛吸附）
+      // =========================================================
+      function stageCoords(e) {
+        const rect = stage.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      }
+
+      function applyDragPosition(pt, now) {
+        const prev = state.lastPointer;
+        const dtMs = Math.max(8, now - (state.lastMoveTime || now - 16));
+        state.pointerVel.x = state.pointerVel.x * 0.55 + ((pt.x - prev.x) / dtMs * 1000) * 0.45;
+        state.pointerVel.y = state.pointerVel.y * 0.55 + ((pt.y - prev.y) / dtMs * 1000) * 0.45;
+        state.lastPointer = pt;
+        state.lastMoveTime = now;
+
+        if (state.mode === 'docked' || state.mode === 'detaching') {
+          const edge = state.edge;
+          const { nx, ny } = getEdgeVector(edge);
+          const dockPos = getDockedCenter(edge, (edge === 'top' || edge === 'bottom') ? pt.x : pt.y);
+
+          // 计算向屏幕内部拉离的垂直距离
+          const pullDist = (pt.x - dockPos.x) * nx + (pt.y - dockPos.y) * ny;
+
+          if (pullDist <= 4) {
+            // 仍紧贴边缘，顺着边缘自由滑动
+            state.mode = 'docked';
+            const shape = getShapeForState('docked', edge);
+            sprX.set(dockPos.x);
+            sprY.set(dockPos.y);
+            setShapeTarget(shape.w, shape.h, shape.r);
+            sprK.set(dockedK());
+            return;
+          }
+
+          if (pullDist < config.detachThreshold) {
+            // 处于拉丝抵抗区：非线性阻尼让胶囊缓缓拉出，液桥在临界值前逐渐变细
+            state.mode = 'detaching';
+
+            const t = pullDist / config.detachThreshold; // 0 -> 1
+            // 让胶囊在拉断前刚好停在液桥即将断开的位置 (约 0.46 * k，略小于 k/2)
+            const maxStretchGap = Math.max(6, config.smoothK * 0.46);
+            const eased = 1 - Math.pow(1 - t, 1.55); // 前半段更粘，后半段绷紧
+            const offset = eased * (maxStretchGap + config.embedDepth);
+
+            // 沿平行边界方向跟随鼠标，带轻微阻尼
+            const dockedShape = getShapeForState('docked', edge);
+            const floatShape = SHAPES.floating;
+
+            // 当拉过 35% 后，开始平滑从贴边形态向横向悬浮胶囊过渡
+            const morphT = Math.max(0, (t - 0.35) / 0.65);
+            const w = dockedShape.w + (floatShape.w - dockedShape.w) * morphT;
+            const h = dockedShape.h + (floatShape.h - dockedShape.h) * morphT;
+            const r = dockedShape.r + (floatShape.r - dockedShape.r) * morphT;
+
+            // 修正中心位置，确保距离边缘的缝隙严格等于 offset - embedDepth
+            const halfNormal = (edge === 'left' || edge === 'right') ? w / 2 : h / 2;
+            const baseEdgeCoord =
+              edge === 'bottom' ? H - halfNormal + config.embedDepth :
+              edge === 'top'    ? halfNormal - config.embedDepth :
+              edge === 'right'  ? W - halfNormal + config.embedDepth :
+                                  halfNormal - config.embedDepth;
+
+            const tx = (edge === 'left' || edge === 'right')
+              ? baseEdgeCoord + nx * offset
+              : clampParallel(edge, pt.x);
+            const ty = (edge === 'top' || edge === 'bottom')
+              ? baseEdgeCoord + ny * offset
+              : clampParallel(edge, pt.y);
+
+            sprX.set(tx);
+            sprY.set(ty);
+            setShapeTarget(w, h, r);
+            // 随着拉扯，k 从静态凹角平滑升到完整拉丝半径，拉出饱满的液桥
+            const kDocked = dockedK();
+            sprK.set(kDocked + (config.smoothK * 1.06 - kDocked) * Math.min(1, t * 1.35));
+            return;
+          }
+
+          // 超过拉断阈值 -> 瞬间释放进入 floating，弹簧飞速追上鼠标并啪嗒拉断液桥！
+          state.justDetachedEdge = edge;
+          state.justDetachedUntil = now + 260;
+          state.mode = 'floating';
+          state.edge = null;
+          setShapeTarget(SHAPES.floating.w, SHAPES.floating.h, SHAPES.floating.r);
+          sprK.set(config.smoothK);
+          sprX.set(clampFloatX(pt.x));
+          sprY.set(clampFloatY(pt.y));
+          // 给一个小小的顺向释放速度脉冲，强化断开回弹手感
+          sprX.v += nx * 160;
+          sprY.v += ny * 160;
+          return;
+        }
+
+        // floating 状态下的自由拖拽 + 靠近四边自动磁吸（带防重吸滞回保护）
+        const cx = clampFloatX(pt.x);
+        const cy = clampFloatY(pt.y);
+        const nearest = findNearestEdge(cx, cy, SHAPES.floating.w / 2, SHAPES.floating.h / 2);
+        const blockedByHysteresis =
+          nearest.edge === state.justDetachedEdge && now < state.justDetachedUntil;
+
+        if (nearest.dist < config.snapThreshold && !blockedByHysteresis) {
+          // 触发磁吸：吸附并变形融入边界
+          dockTo(nearest.edge, nearest.along, false);
+        } else {
+          sprX.set(cx);
+          sprY.set(cy);
+          setShapeTarget(SHAPES.floating.w, SHAPES.floating.h, SHAPES.floating.r);
+          sprK.set(config.smoothK);
+        }
+      }
+
+      function clampFloatX(x) {
+        const pad = SHAPES.floating.w / 2 + 4;
+        return Math.max(pad, Math.min(W - pad, x));
+      }
+
+      function clampFloatY(y) {
+        const pad = SHAPES.floating.h / 2 + 4;
+        return Math.max(pad, Math.min(H - pad, y));
+      }
+
+      pillHit.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        stopAutoDemo();
+        dismissHint();
+
+        const pt = stageCoords(e);
+        state.dragging = true;
+        state.pointerId = e.pointerId;
+        state.downPos = pt;
+        state.lastPointer = pt;
+        state.lastMoveTime = performance.now();
+        state.pointerVel = { x: 0, y: 0 };
+        state.dragMoved = false;
+
+        pillHit.classList.add('dragging');
+        pillHit.setPointerCapture(e.pointerId);
+      });
+
+      pillHit.addEventListener('pointermove', (e) => {
+        if (!state.dragging || e.pointerId !== state.pointerId) return;
+        const pt = stageCoords(e);
+        const moved = Math.hypot(pt.x - state.downPos.x, pt.y - state.downPos.y);
+        if (moved > 5) {
+          state.dragMoved = true;
+          if (state.popoverOpen) setPopoverOpen(false);
+        }
+        if (state.dragMoved) {
+          applyDragPosition(pt, performance.now());
+        }
+      });
+
+      function finishDrag(e) {
+        if (!state.dragging || e.pointerId !== state.pointerId) return;
+        state.dragging = false;
+        pillHit.classList.remove('dragging');
+        try { pillHit.releasePointerCapture(e.pointerId); } catch (_) {}
+
+        if (!state.dragMoved) {
+          // 轻点 -> 展开/收起任务浮窗
+          setPopoverOpen(!state.popoverOpen);
+          return;
+        }
+
+        if (state.mode === 'detaching') {
+          // 未拉过阈值就松手 -> 顺着表面张力弹回原边
+          dockTo(state.edge, (state.edge === 'top' || state.edge === 'bottom') ? sprX.x : sprY.x, false);
+          return;
+        }
+
+        if (state.mode === 'floating') {
+          // 浮空松手：叠加惯性预测落点，若靠近边界或甩向边界则顺滑吸附
+          const predX = sprX.target + state.pointerVel.x * 0.12;
+          const predY = sprY.target + state.pointerVel.y * 0.12;
+          const nearest = findNearestEdge(predX, predY, SHAPES.floating.w / 2, SHAPES.floating.h / 2);
+
+          const releaseSnapDist = Math.max(config.snapThreshold + 18, 42);
+          if (nearest.dist < releaseSnapDist) {
+            dockTo(nearest.edge, nearest.along, false);
+          } else {
+            sprX.set(clampFloatX(predX));
+            sprY.set(clampFloatY(predY));
+          }
+        }
+      }
+
+      pillHit.addEventListener('pointerup', finishDrag);
+      pillHit.addEventListener('pointercancel', finishDrag);
+
+      // 键盘回车/空格展开
+      pillHit.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setPopoverOpen(!state.popoverOpen);
+        }
+      });
+
+      // 点击舞台空白处关闭展开面板
+      stage.addEventListener('pointerdown', (e) => {
+        if (!state.popoverOpen) return;
+        if (popover.contains(e.target) || pillHit.contains(e.target)) return;
+        setPopoverOpen(false);
+      });
+
+      // =========================================================
+      // 7. 展开面板（仿视频中的毛玻璃浮层）
+      // =========================================================
+      let taskEls = [];
+
+      function updateTaskSummary() {
+        const remaining = TASKS.filter((t) => !t.done).length;
+        pillCount.textContent = String(remaining);
+        popoverBadge.textContent = remaining > 0 ? `${remaining} 待办` : '全部完成';
+        ringComet.classList.toggle('idle', remaining === 0);
+      }
+
+      function renderTasks() {
+        updateTaskSummary();
+        if (taskEls.length === TASKS.length) {
+          TASKS.forEach((task, idx) => {
+            taskEls[idx].classList.toggle('done', task.done);
+          });
+          return;
+        }
+        taskList.innerHTML = '';
+        taskEls = TASKS.map((task, idx) => {
+          const item = document.createElement('div');
+          item.className = 'task-item' + (task.done ? ' done' : '');
+          item.innerHTML = `
+            <div class="task-check"></div>
+            <div class="task-body">
+              <div class="task-name">${task.name}</div>
+              <div class="task-desc">${task.desc}</div>
+            </div>
+          `;
+          item.addEventListener('click', () => {
+            TASKS[idx].done = !TASKS[idx].done;
+            item.classList.toggle('done', TASKS[idx].done);
+            updateTaskSummary();
+          });
+          taskList.appendChild(item);
+          return item;
+        });
+      }
+
+      function computePanelRect() {
+        const margin = 14;
+        const pw = Math.min(320, Math.max(240, W - margin * 2));
+        popoverInner.style.width = `${pw}px`;
+        // 若面板当前隐藏，临时透明测量精确内容高度
+        const wasHidden = popover.style.display === 'none' || !popover.style.display;
+        if (wasHidden) {
+          popover.style.visibility = 'hidden';
+          popover.style.display = 'block';
+        }
+        const ph = Math.min(popoverInner.offsetHeight || 348, H - margin * 2);
+        if (wasHidden) {
+          popover.style.display = 'none';
+          popover.style.visibility = '';
+        }
+
+        // 以胶囊当前中心 (sprX.x, sprY.x) 为中心原地展开，仅在触及四边时按 margin=14px 内收
+        const left = Math.max(margin, Math.min(W - pw - margin, sprX.x - pw / 2));
+        const top = Math.max(margin, Math.min(H - ph - margin, sprY.x - ph / 2));
+
+        panelRect.left = left;
+        panelRect.top = top;
+        panelRect.w = pw;
+        panelRect.h = ph;
+      }
+
+      function setPopoverOpen(open) {
+        state.popoverOpen = open;
+        popoverSettled = false;
+        if (open) {
+          computePanelRect();
+          sprOpen.set(1);
+        } else {
+          sprOpen.set(0);
+        }
+      }
+
+      popoverClose.addEventListener('click', () => setPopoverOpen(false));
+
+      // =========================================================
+      // 8. 自动演示剧本（复现视频：底边拉断 -> 浮空 -> 贴右边 -> 右边拉断）
+      // =========================================================
+      const btnDemo = document.getElementById('btn-demo');
+
+      function stopAutoDemo() {
+        if (state.autoDemo) {
+          state.autoDemo = null;
+          btnDemo.textContent = '自动演示';
+        }
+      }
+
+      function startAutoDemo() {
+        if (state.autoDemo) {
+          stopAutoDemo();
+          return;
+        }
+        dismissHint();
+        setPopoverOpen(false);
+        btnDemo.textContent = '停止演示';
+
+        const startX = Math.min(W * 0.62, W - 120);
+        dockTo('bottom', startX, false);
+
+        state.autoDemo = {
+          startTime: performance.now(),
+          startX,
+        };
+      }
+
+      function tickAutoDemo(now) {
+        if (!state.autoDemo) return;
+        const t = ((now - state.autoDemo.startTime) / 1000) % 7.2;
+        const sx = state.autoDemo.startX;
+
+        const lerp = (a, b, u) => a + (b - a) * u;
+        const easeInOut = (u) => u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+
+        let px, py;
+        if (t < 0.6) {
+          // 停在底边
+          dockTo('bottom', sx, false);
+          return;
+        } else if (t < 1.8) {
+          // 从底边缓缓往上拉丝，并在中后段拉断
+          const u = easeInOut((t - 0.6) / 1.2);
+          px = lerp(sx, W * 0.68, u);
+          py = lerp(H - 18, H * 0.55, u);
+          applyDragPosition({ x: px, y: py }, now);
+        } else if (t < 3.0) {
+          // 滑向右侧黑边并融进去
+          const u = easeInOut((t - 1.8) / 1.2);
+          px = lerp(W * 0.68, W - 12, u);
+          py = lerp(H * 0.55, H * 0.48, u);
+          applyDragPosition({ x: px, y: py }, now);
+        } else if (t < 3.9) {
+          // 在右侧边缘上下轻滑
+          const u = easeInOut((t - 3.0) / 0.9);
+          px = W - 12;
+          py = lerp(H * 0.48, H * 0.62, u);
+          applyDragPosition({ x: px, y: py }, now);
+        } else if (t < 5.3) {
+          // 向左拉丝并拉断！
+          const u = easeInOut((t - 3.9) / 1.4);
+          px = lerp(W - 12, W * 0.58, u);
+          py = lerp(H * 0.62, H * 0.64, u);
+          applyDragPosition({ x: px, y: py }, now);
+        } else if (t < 6.5) {
+          // 飞回底边重新吸附
+          const u = easeInOut((t - 5.3) / 1.2);
+          px = lerp(W * 0.58, sx, u);
+          py = lerp(H * 0.64, H - 12, u);
+          applyDragPosition({ x: px, y: py }, now);
+        } else {
+          dockTo('bottom', sx, false);
+        }
+      }
+
+      btnDemo.addEventListener('click', startAutoDemo);
+
+      // =========================================================
+      // 9. 调试面板控件
+      // =========================================================
+      const controls = document.getElementById('controls');
+      const ctrlToggle = document.getElementById('ctrl-toggle');
+      const rangeK = document.getElementById('range-k');
+      const rangeDetach = document.getElementById('range-detach');
+      const rangeSnap = document.getElementById('range-snap');
+      const valK = document.getElementById('val-k');
+      const valDetach = document.getElementById('val-detach');
+      const valSnap = document.getElementById('val-snap');
+      const btnBezel = document.getElementById('btn-bezel');
+
+      ctrlToggle.addEventListener('click', () => {
+        const collapsed = controls.classList.toggle('collapsed');
+        ctrlToggle.textContent = collapsed ? '展开' : '收起';
+      });
+
+      rangeK.addEventListener('input', () => {
+        config.smoothK = Number(rangeK.value);
+        valK.textContent = `${config.smoothK} px`;
+        sprK.set(state.mode === 'docked' ? dockedK() : config.smoothK);
+      });
+
+      rangeDetach.addEventListener('input', () => {
+        config.detachThreshold = Number(rangeDetach.value);
+        valDetach.textContent = `${config.detachThreshold} px`;
+      });
+
+      rangeSnap.addEventListener('input', () => {
+        config.snapThreshold = Number(rangeSnap.value);
+        valSnap.textContent = `${config.snapThreshold} px`;
+      });
+
+      btnBezel.addEventListener('click', () => {
+        bezelShell.classList.toggle('full-bleed');
+        resize();
+      });
+
+      // =========================================================
+      // 10. 尺寸同步与渲染主循环
+      // =========================================================
+      function resize() {
+        const rect = stage.getBoundingClientRect();
+        W = rect.width;
+        H = rect.height;
+        dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+        glCanvas.width = Math.round(W * dpr);
+        glCanvas.height = Math.round(H * dpr);
+        if (gl) {
+          gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+        }
+
+        // 窗口缩放时重新约束位置
+        if (state.mode === 'docked' && state.edge) {
+          dockTo(state.edge, (state.edge === 'top' || state.edge === 'bottom') ? sprX.target : sprY.target, true);
+        } else {
+          sprX.set(clampFloatX(sprX.target), true);
+          sprY.set(clampFloatY(sprY.target), true);
+        }
+
+        if (state.popoverOpen) {
+          computePanelRect();
+          popoverSettled = false;
+        }
+        lastGlKey = '';
+      }
+
+      let lastTime = performance.now();
+      let cometAngle = 25;
+      let popoverSettled = false;
+      let lastGlKey = '';
+      let lastPillKey = '';
+
+      function frame(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.033);
+        lastTime = now;
+
+        tickAutoDemo(now);
+
+        // 步进弹簧
+        const cx = sprX.step(dt);
+        const cy = sprY.step(dt);
+        const w = Math.max(24, sprW.step(dt));
+        const h = Math.max(24, sprH.step(dt));
+        const r = Math.max(6, sprR.step(dt));
+        const k = Math.max(1, sprK.step(dt));
+        let openRaw = sprOpen.step(dt);
+        // 展开或收起到静止区间时主动收敛，避免逐帧微写 DOM 触发 backdrop-filter 重建闪烁
+        if (state.popoverOpen && Math.abs(openRaw - 1) < 0.0015 && Math.abs(sprOpen.v) < 0.02) {
+          sprOpen.x = 1;
+          sprOpen.v = 0;
+          openRaw = 1;
+        } else if (!state.popoverOpen && Math.abs(openRaw) < 0.0015 && Math.abs(sprOpen.v) < 0.02) {
+          sprOpen.x = 0;
+          sprOpen.v = 0;
+          openRaw = 0;
+        }
+        const openP = Math.max(0, Math.min(1.04, openRaw));
+        const openClamped = Math.min(1, openP);
+        // 展开前 25% 进度内把黑色液态胶囊平滑淡出，原地移交给毛玻璃卡片
+        const pillOpacity = Math.max(0, Math.min(1, 1 - openClamped * 3.8));
+
+        if (pillOpacity > 0.01 && !ringComet.classList.contains('idle')) {
+          cometAngle = (cometAngle + dt * 165) % 360;
+          ringComet.setAttribute('transform', `rotate(${cometAngle.toFixed(2)} 14 14)`);
+        }
+
+        // 速度微弱拉伸（自由移动时更有果冻生命感）
+        const speedX = Math.abs(sprX.v);
+        const speedY = Math.abs(sprY.v);
+        const stretchX = state.mode === 'floating' ? Math.min(speedX * 0.005, 5) : 0;
+        const stretchY = state.mode === 'floating' ? Math.min(speedY * 0.005, 5) : 0;
+        const renderW = w + stretchX - stretchY * 0.35;
+        const renderH = h + stretchY - stretchX * 0.35;
+
+        // 1) 渲染 WebGL 2D SDF 液化背景层（静止无变化时跳过重绘，避免持续冲刷毛玻璃 backdrop-filter）
+        if (gl) {
+          const stageR = bezelShell.classList.contains('full-bleed') ? 0 : 16;
+          const glKey = `${W}|${H}|${dpr}|${stageR}|${cx.toFixed(2)}|${cy.toFixed(2)}|${renderW.toFixed(2)}|${renderH.toFixed(2)}|${r.toFixed(2)}|${k.toFixed(2)}|${pillOpacity.toFixed(3)}`;
+          if (glKey !== lastGlKey) {
+            lastGlKey = glKey;
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.uniform2f(glUniforms.uSize, W, H);
+            gl.uniform2f(glUniforms.uCanvasRes, glCanvas.width, glCanvas.height);
+            gl.uniform1f(glUniforms.uDpr, dpr);
+            gl.uniform1f(glUniforms.uStageRadius, stageR);
+            gl.uniform2f(glUniforms.uPillPos, cx, cy);
+            gl.uniform2f(glUniforms.uPillHalf, renderW * 0.5, renderH * 0.5);
+            gl.uniform1f(glUniforms.uPillRadius, r);
+            gl.uniform1f(glUniforms.uSmoothK, k);
+            gl.uniform1f(glUniforms.uPillOpacity, pillOpacity);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+          }
+        }
+
+        // 2) 对齐上层清晰交互层与图标光学中心
+        let iconShiftX = 0;
+        let iconShiftY = 0;
+        if (state.mode === 'docked') {
+          if (state.edge === 'bottom') iconShiftY = -2;
+          if (state.edge === 'top')    iconShiftY = 2;
+          if (state.edge === 'right')  iconShiftX = -2;
+          if (state.edge === 'left')   iconShiftX = 2;
+        }
+        const pillPE = state.popoverOpen || openClamped > 0.25 ? 'none' : 'auto';
+        const pillKey = `${renderW.toFixed(1)}|${renderH.toFixed(1)}|${pillOpacity.toFixed(3)}|${pillPE}|${(cx - renderW / 2 + iconShiftX).toFixed(2)}|${(cy - renderH / 2 + iconShiftY).toFixed(2)}`;
+        if (pillKey !== lastPillKey) {
+          lastPillKey = pillKey;
+          pillHit.style.width = `${renderW.toFixed(1)}px`;
+          pillHit.style.height = `${renderH.toFixed(1)}px`;
+          pillHit.style.opacity = pillOpacity.toFixed(3);
+          pillHit.style.pointerEvents = pillPE;
+          pillHit.style.transform = `translate3d(${(cx - renderW / 2 + iconShiftX).toFixed(2)}px, ${(cy - renderH / 2 + iconShiftY).toFixed(2)}px, 0)`;
+        }
+
+        // 3) 胶囊原地变形为毛玻璃卡片（仅在动画期间逐帧插值，落定后冻结样式避免 hover 重建毛玻璃闪烁）
+        if (openClamped <= 0.004 && !state.popoverOpen) {
+          if (popover.style.display !== 'none') {
+            popover.style.display = 'none';
+            popover.style.pointerEvents = 'none';
+            popoverSettled = false;
+          }
+        } else if (state.popoverOpen && openRaw === 1) {
+          if (!popoverSettled) {
+            popoverSettled = true;
+            popover.style.display = 'block';
+            popover.style.width = `${Math.round(panelRect.w)}px`;
+            popover.style.height = `${Math.round(panelRect.h)}px`;
+            popover.style.borderRadius = '24px';
+            popover.style.transform = `translate3d(${Math.round(panelRect.left)}px, ${Math.round(panelRect.top)}px, 0)`;
+            popover.style.opacity = '1';
+            popover.style.pointerEvents = 'auto';
+            popoverInner.style.opacity = '1';
+          }
+        } else {
+          popoverSettled = false;
+          if (popover.style.display !== 'block') {
+            popover.style.display = 'block';
+          }
+          const pillL = cx - renderW * 0.5;
+          const pillT = cy - renderH * 0.5;
+          const curW = Math.max(renderW, renderW + (panelRect.w - renderW) * openP);
+          const curH = Math.max(renderH, renderH + (panelRect.h - renderH) * openP);
+          const curL = pillL + (panelRect.left - pillL) * openP;
+          const curT = pillT + (panelRect.top - pillT) * openP;
+          // 展开中段略微放大圆角形成液态超椭圆，落定回 24px
+          const curRad = r + (24 - r) * openClamped + Math.sin(openClamped * Math.PI) * 14;
+
+          popover.style.width = `${curW.toFixed(1)}px`;
+          popover.style.height = `${curH.toFixed(1)}px`;
+          popover.style.borderRadius = `${curRad.toFixed(1)}px`;
+          popover.style.transform = `translate3d(${curL.toFixed(2)}px, ${curT.toFixed(2)}px, 0)`;
+          popover.style.opacity = Math.min(1, openClamped * 4.2).toFixed(3);
+          popover.style.pointerEvents = state.popoverOpen && openClamped > 0.72 ? 'auto' : 'none';
+          popoverInner.style.opacity = Math.max(0, Math.min(1, (openClamped - 0.14) / 0.42)).toFixed(3);
+        }
+
+        // 3) 刷新状态调试文本
+        const nearest = findNearestEdge(cx, cy, renderW / 2, renderH / 2);
+        const edgeSuffix = state.edge ? `: ${state.edge}` : '';
+        stateText.textContent = `${state.mode}${edgeSuffix}`;
+        gapText.textContent = `gap ${Math.max(0, Math.round(nearest.dist))}px`;
+
+        requestAnimationFrame(frame);
+      }
+
+      // =========================================================
+      // 11. 初始化启动
+      // =========================================================
+      if (!initWebGL()) {
+        hint.textContent = '当前浏览器不支持 WebGL，无法渲染 SDF 液化层';
+      }
+
+      renderTasks();
+      resize();
+      // 初始像视频 00:00 一样吸附在底边右侧偏中
+      dockTo('bottom', Math.min(W * 0.65, W - 96), true);
+
+      window.addEventListener('resize', resize);
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>

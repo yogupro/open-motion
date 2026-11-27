@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050505">
+  <title>语音助手 · 粒子声波</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./trails.js"></script>
+  <script defer src="./particles.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <main class="viewport" aria-label="语音助手动效演示">
+    <div class="scene">
+      <section class="card agent" aria-label="语音助手">
+        <canvas aria-hidden="true"></canvas>
+        <div class="transcript" aria-hidden="true"></div>
+        <div class="agent-chip" aria-hidden="true">智能体
+          <svg viewBox="0 0 16 12"><path d="m3 4 5 5 5-5"/></svg>
+        </div>
+        <div class="voice-controls"></div>
+        <span class="sr-only" role="status"></span>
+      </section>
+      <section class="card composer" aria-label="语音输入">
+        <canvas aria-hidden="true"></canvas>
+        <div class="status" aria-hidden="true">
+          <span>有什么想问的？</span><span>正在聆听…</span><span>正在思考…</span>
+        </div>
+        <span class="add" aria-hidden="true">
+          <svg viewBox="0 0 40 40"><path d="M20 7v26M7 20h26"/></svg>
+        </span>
+        <div class="voice-controls"></div>
+        <span class="sr-only" role="status"></span>
+      </section>
+    </div>
+  </main>
+
+  <template id="controls">
+    <svg class="skin" viewBox="0 0 264 116" aria-hidden="true">
+      <defs>
+        <linearGradient x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop stop-color="white" stop-opacity=".12"/><stop offset=".32" stop-color="white" stop-opacity=".035"/>
+          <stop offset=".78" stop-color="white" stop-opacity=".022"/><stop offset="1" stop-color="white" stop-opacity=".065"/>
+        </linearGradient>
+      </defs>
+      <path stroke-width="2.4"/>
+    </svg>
+    <button class="mic" type="button" aria-label="切换到思考">
+      <svg viewBox="0 0 40 48" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="14" y="4" width="12" height="26" rx="6"/>
+        <path d="M5.5 20.5v1a14.5 14.5 0 0 0 29 0v-1M20 36v7M12 43h16"/>
+      </svg>
+    </button>
+    <button class="voice-toggle" type="button" aria-label="结束语音对话">
+      <svg class="wave" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M5 19v3M15 13v15M25 8v24M35 17v8"/>
+      </svg>
+      <svg class="cross" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="m10 10 20 20M30 10 10 30"/>
+      </svg>
+    </button>
+  </template>
+</body>
+</html>

@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>患者流转漏斗 — WebGL 微交互动效</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      background: transparent;
+      color: #f4f4f5;
+      font-family: "Inter", "PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      user-select: none;
+    }
+
+    .stage-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      padding: 6px 0;
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      max-width: 756px;
+      height: 446px;
+      background: #040406;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.075);
+      box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header Bar ─────────────────────────────────────────────── */
+    .header {
+      position: relative;
+      height: 58px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+      z-index: 4;
+    }
+
+    .tabs {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      height: 100%;
+    }
+
+    .tab-btn {
+      position: relative;
+      height: 100%;
+      display: inline-flex;
+      align-items: center;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: rgba(255, 255, 255, 0.42);
+      cursor: pointer;
+      transition: color 200ms ease;
+      outline: none;
+    }
+
+    .tab-btn:hover {
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tab-btn.active {
+      color: #ffffff;
+    }
+
+    .tab-indicator {
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      height: 2px;
+      background: #ffffff;
+      border-radius: 1px;
+      pointer-events: none;
+      transition:
+        transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+        width 340ms cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform, width;
+    }
+
+    .meta-right {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      letter-spacing: -0.005em;
+    }
+
+    .status-dot {
+      width: 6.5px;
+      height: 6.5px;
+      border-radius: 50%;
+      background: #f8d886;
+      box-shadow: 0 0 8px 1px rgba(248, 216, 134, 0.65);
+      transition:
+        background-color 420ms ease,
+        box-shadow 420ms ease;
+      flex-shrink: 0;
+    }
+
+    .meta-label {
+      color: rgba(255, 255, 255, 0.44);
+      white-space: nowrap;
+    }
+
+    .meta-sep {
+      color: rgba(255, 255, 255, 0.18);
+      font-size: 11px;
+      margin: 0 1px;
+    }
+
+    .dept-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: none;
+      border: none;
+      padding: 4px 2px;
+      margin: -4px -2px;
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.88);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: color 180ms ease, opacity 180ms ease;
+      outline: none;
+      white-space: nowrap;
+    }
+
+    .dept-btn:hover {
+      color: #ffffff;
+    }
+
+    .dept-btn:active {
+      opacity: 0.72;
+    }
+
+    .dept-chevrons {
+      width: 12px;
+      height: 12px;
+      color: rgba(255, 255, 255, 0.55);
+      transition: color 180ms ease;
+    }
+
+    .dept-btn:hover .dept-chevrons {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* ── Main Interactive Body ──────────────────────────────────── */
+    .body {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    canvas#webgl-funnel {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    /* ── Stage Metrics Overlay ──────────────────────────────────── */
+    .metrics-row {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 73.68%;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .metric-col {
+      padding: 20px 10px 14px 24px;
+      transition: opacity 230ms ease;
+      pointer-events: auto;
+      cursor: default;
+    }
+
+    .metric-col.dimmed {
+      opacity: 0.3;
+    }
+
+    .metric-label {
+      font-size: 11.5px;
+      font-weight: 450;
+      color: rgba(255, 255, 255, 0.44);
+      margin-bottom: 5px;
+      letter-spacing: 0.005em;
+      transition: color 230ms ease;
+    }
+
+    .metric-col.focused .metric-label {
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 560;
+      color: #f4f4f6;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 4px;
+    }
+
+    .metric-pct {
+      font-size: 11px;
+      font-weight: 450;
+      color: rgba(255, 255, 255, 0.36);
+      font-variant-numeric: tabular-nums;
+      transition: color 230ms ease;
+    }
+
+    .metric-col.focused .metric-pct {
+      color: rgba(255, 255, 255, 0.56);
+    }
+
+    /* ── Right Summary Callout ──────────────────────────────────── */
+    .summary-panel {
+      position: absolute;
+      left: 76.8%;
+      right: 16px;
+      top: 58.2%;
+      transform: translateY(-50%);
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      font-weight: 450;
+      color: rgba(255, 255, 255, 0.45);
+      margin-bottom: 5px;
+    }
+
+    .summary-value {
+      font-size: 40px;
+      font-weight: 560;
+      color: #ffffff;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 7px;
+    }
+
+    .summary-sub {
+      font-size: 11.5px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.38);
+    }
+
+    /* ── Bottom Biggest Drop-off Badge ──────────────────────────── */
+    .dropoff-anchor {
+      position: absolute;
+      left: 8.6%;
+      bottom: 13px;
+      z-index: 3;
+      pointer-events: none;
+      transition: left 450ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .dropoff-tick {
+      width: 1px;
+      height: 12px;
+      margin-left: 1px;
+      margin-bottom: 6px;
+      background: linear-gradient(
+        to bottom,
+        rgba(218, 72, 102, 0.7),
+        rgba(218, 72, 102, 0.22)
+      );
+    }
+
+    .dropoff-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 11px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      font-variant-numeric: tabular-nums;
+      color: #d6657c;
+      background: rgba(168, 30, 60, 0.14);
+      border: 1px solid rgba(208, 62, 94, 0.26);
+      backdrop-filter: blur(4px);
+      white-space: nowrap;
+    }
+
+    /* ── Responsive tweak for narrower embeds ───────────────────── */
+    @media (max-width: 640px) {
+      .card {
+        height: 410px;
+        border-radius: 16px;
+      }
+      .header {
+        padding: 0 16px;
+        height: 52px;
+      }
+      .tabs {
+        gap: 14px;
+      }
+      .meta-label {
+        display: none;
+      }
+      .meta-sep {
+        display: none;
+      }
+      .metric-col {
+        padding: 16px 6px 10px 14px;
+      }
+      .metric-value {
+        font-size: 16px;
+      }
+      .summary-value {
+        font-size: 28px;
+      }
+      .summary-label, .summary-sub {
+        font-size: 10.5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="card" id="card">
+      <div class="header">
+        <div class="tabs" id="tabs" role="tablist" aria-label="患者分组">
+          <button class="tab-btn active" data-tab="all" role="tab" aria-selected="true">全部患者</button>
+          <button class="tab-btn" data-tab="inClinic" role="tab" aria-selected="false">线下门诊</button>
+          <button class="tab-btn" data-tab="telehealth" role="tab" aria-selected="false">远程诊疗</button>
+          <div class="tab-indicator" id="tabIndicator"></div>
+        </div>
+
+        <div class="meta-right">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="meta-label">患者流转 · 近 30 天</span>
+          <span class="meta-sep">/</span>
+          <button class="dept-btn" id="deptBtn" title="点击切换科室" aria-label="切换科室">
+            <span id="deptLabel">全部科室</span>
+            <svg class="dept-chevrons" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m7 15 5 5 5-5"></path>
+              <path d="m7 9 5-5 5 5"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="body" id="funnelBody">
+        <canvas id="webgl-funnel"></canvas>
+
+        <div class="metrics-row" id="metricsRow">
+          <div class="metric-col" data-stage="0">
+            <div class="metric-label">转诊</div>
+            <div class="metric-value" id="val-0">12,480</div>
+            <div class="metric-pct" id="pct-0">100.0%</div>
+          </div>
+          <div class="metric-col" data-stage="1">
+            <div class="metric-label">已预约</div>
+            <div class="metric-value" id="val-1">8,960</div>
+            <div class="metric-pct" id="pct-1">71.8%</div>
+          </div>
+          <div class="metric-col" data-stage="2">
+            <div class="metric-label">已就诊</div>
+            <div class="metric-value" id="val-2">7,310</div>
+            <div class="metric-pct" id="pct-2">58.6%</div>
+          </div>
+          <div class="metric-col" data-stage="3">
+            <div class="metric-label">已康复</div>
+            <div class="metric-value" id="val-3">5,842</div>
+            <div class="metric-pct" id="pct-3">46.8%</div>
+          </div>
+        </div>
+
+        <div class="summary-panel">
+          <div class="summary-label">康复率</div>
+          <div class="summary-value" id="recoveryRate">46.8%</div>
+          <div class="summary-sub">占转诊患者比例</div>
+        </div>
+
+        <div class="dropoff-anchor" id="dropoffAnchor">
+          <div class="dropoff-tick"></div>
+          <div class="dropoff-pill" id="dropoffPill">-28.2% 最大流失环节</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // =========================================================================
+      // 1. DATASETS & DEPARTMENT VISUAL THEMES (measured verbatim from reference)
+      // =========================================================================
+      const DEPARTMENTS = [
+        {
+          id: 'all',
+          name: '全部科室',
+          dotColor: '#f8d886',
+          dotGlow: 'rgba(248, 216, 134, 0.72)',
+          fill: [
+            [0.54, 0.11, 0.22],
+            [0.56, 0.22, 0.17],
+            [0.54, 0.35, 0.16],
+            [0.56, 0.48, 0.23],
+          ],
+          edge: [
+            [0.95, 0.30, 0.44],
+            [0.95, 0.46, 0.32],
+            [0.95, 0.69, 0.38],
+            [1.00, 0.95, 0.74],
+          ],
+          data: {
+            all:        [12480, 8960, 7310, 5842],
+            inClinic:   [7920,  5610, 4380, 3410],
+            telehealth: [4560,  3350, 2930, 2432],
+          },
+        },
+        {
+          id: 'cardiology',
+          name: '心内科',
+          dotColor: '#ff709c',
+          dotGlow: 'rgba(255, 112, 156, 0.75)',
+          fill: [
+            [0.44, 0.04, 0.14],
+            [0.56, 0.08, 0.20],
+            [0.64, 0.15, 0.28],
+            [0.72, 0.26, 0.38],
+          ],
+          edge: [
+            [0.92, 0.16, 0.34],
+            [0.96, 0.24, 0.42],
+            [1.00, 0.40, 0.54],
+            [1.00, 0.66, 0.76],
+          ],
+          data: {
+            all:        [3869, 2957, 2485, 2103],
+            inClinic:   [2580, 1945, 1605, 1328],
+            telehealth: [1289, 1012, 880,  775],
+          },
+        },
+        {
+          id: 'neurology',
+          name: '神经内科',
+          dotColor: '#f372eb',
+          dotGlow: 'rgba(243, 114, 235, 0.78)',
+          fill: [
+            [0.27, 0.07, 0.56],
+            [0.40, 0.11, 0.66],
+            [0.53, 0.16, 0.70],
+            [0.64, 0.25, 0.72],
+          ],
+          edge: [
+            [0.54, 0.22, 0.96],
+            [0.70, 0.26, 0.97],
+            [0.86, 0.38, 0.96],
+            [1.00, 0.72, 1.00],
+          ],
+          data: {
+            all:        [2246, 1523, 1316, 993],
+            inClinic:   [1340, 884,  748,  538],
+            telehealth: [906,  639,  568,  455],
+          },
+        },
+        {
+          id: 'orthopedics',
+          name: '骨科',
+          dotColor: '#f5dcc8',
+          dotGlow: 'rgba(245, 220, 200, 0.72)',
+          fill: [
+            [0.43, 0.20, 0.10],
+            [0.53, 0.29, 0.17],
+            [0.56, 0.38, 0.25],
+            [0.54, 0.45, 0.35],
+          ],
+          edge: [
+            [0.86, 0.49, 0.31],
+            [0.92, 0.65, 0.47],
+            [0.96, 0.80, 0.64],
+            [1.00, 0.95, 0.86],
+          ],
+          data: {
+            all:        [2995, 1971, 1462, 1110],
+            inClinic:   [2210, 1432, 1028, 756],
+            telehealth: [785,  539,  434,  354],
+          },
+        },
+        {
+          id: 'pulmonology',
+          name: '呼吸内科',
+          dotColor: '#a2fce4',
+          dotGlow: 'rgba(162, 252, 228, 0.78)',
+          fill: [
+            [0.08, 0.32, 0.31],
+            [0.12, 0.44, 0.40],
+            [0.18, 0.54, 0.48],
+            [0.29, 0.58, 0.54],
+          ],
+          edge: [
+            [0.24, 0.76, 0.65],
+            [0.36, 0.89, 0.75],
+            [0.54, 0.98, 0.86],
+            [0.80, 1.00, 0.94],
+          ],
+          data: {
+            all:        [2621, 2061, 1754, 1461],
+            inClinic:   [1640, 1272, 1058, 862],
+            telehealth: [981,  789,  696,  599],
+          },
+        },
+      ];
+
+      // =========================================================================
+      // 2. UI STATE & DOM REFERENCES
+      // =========================================================================
+      let activeTab = 'all';
+      let activeDeptIdx = 0;
+      let hoveredStage = -1;
+
+      const tabsEl = document.getElementById('tabs');
+      const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+      const tabIndicator = document.getElementById('tabIndicator');
+      const statusDot = document.getElementById('statusDot');
+      const deptBtn = document.getElementById('deptBtn');
+      const deptLabel = document.getElementById('deptLabel');
+      const funnelBody = document.getElementById('funnelBody');
+      const canvas = document.getElementById('webgl-funnel');
+      const metricCols = Array.from(document.querySelectorAll('.metric-col'));
+      const valEls = [0, 1, 2, 3].map(i => document.getElementById(`val-${i}`));
+      const pctEls = [0, 1, 2, 3].map(i => document.getElementById(`pct-${i}`));
+      const recoveryRateEl = document.getElementById('recoveryRate');
+      const dropoffAnchor = document.getElementById('dropoffAnchor');
+      const dropoffPill = document.getElementById('dropoffPill');
+
+      function updateTabIndicator(instant = false) {
+        const activeBtn = tabBtns.find(b => b.dataset.tab === activeTab);
+        if (!activeBtn) return;
+        const parentRect = tabsEl.getBoundingClientRect();
+        const btnRect = activeBtn.getBoundingClientRect();
+        if (instant) tabIndicator.style.transition = 'none';
+        tabIndicator.style.width = `${btnRect.width}px`;
+        tabIndicator.style.transform = `translateX(${btnRect.left - parentRect.left}px)`;
+        if (instant) {
+          tabIndicator.offsetHeight;
+          tabIndicator.style.transition = '';
+        }
+      }
+
+      // Animated numeric values
+      const initCounts = DEPARTMENTS[0].data.all.slice();
+      const displayCounts = initCounts.slice();
+      const targetCounts = initCounts.slice();
+      const startCounts = initCounts.slice();
+
+      const computePcts = (counts) => counts.map(v => (v / counts[0]) * 100);
+      const displayPcts = computePcts(initCounts);
+      const targetPcts = displayPcts.slice();
+      const startPcts = displayPcts.slice();
+
+      function computeDropoff(pcts) {
+        let bestIdx = 0;
+        let bestDrop = -1;
+        for (let i = 0; i < 3; i++) {
+          const drop = pcts[i] - pcts[i + 1];
+          if (drop > bestDrop) {
+            bestDrop = drop;
+            bestIdx = i;
+          }
+        }
+        return { stageIdx: bestIdx, dropPct: bestDrop };
+      }
+
+      let curDropoff = computeDropoff(displayPcts).dropPct;
+      let startDropoff = curDropoff;
+      let targetDropoff = curDropoff;
+      let counterAnimStart = 0;
+      const COUNTER_ANIM_MS = 520;
+
+      // Height targets (normalized 0..1 of MAX_HALF_HEIGHT using exact p^1.85 law)
+      const computeNormHeights = (counts) =>
+        counts.map(v => Math.pow(Math.max(0.05, v / counts[0]), 1.85));
+
+      const curHeights = computeNormHeights(initCounts);
+      const targetHeights = curHeights.slice();
+
+      // Smoothly morphed color palette (4 fill stops + 4 edge stops)
+      const curFill = DEPARTMENTS[0].fill.map(c => c.slice());
+      const curEdge = DEPARTMENTS[0].edge.map(c => c.slice());
+
+      // Smoothly blended department shader weights [All, Cardio, Neuro, Ortho, Pulmo]
+      const modeWeights = [1, 0, 0, 0, 0];
+
+      // Wave state (sweep wave shared by All / Cardio / Ortho + fresh sweep on switch)
+      let waveX = -0.35; // normalized funnel X in [-0.35 .. 1.45]
+      let waveRestTimer = 0.7; // seconds before next sweep
+      let transitionBoost = 0.0;
+
+      function triggerDataTransition(triggerSweep = true) {
+        const dept = DEPARTMENTS[activeDeptIdx];
+        const nextCounts = dept.data[activeTab];
+        const nextPcts = computePcts(nextCounts);
+        const nextHeights = computeNormHeights(nextCounts);
+        const dropInfo = computeDropoff(nextPcts);
+
+        const now = performance.now();
+        for (let i = 0; i < 4; i++) {
+          startCounts[i] = displayCounts[i];
+          targetCounts[i] = nextCounts[i];
+          startPcts[i] = displayPcts[i];
+          targetPcts[i] = nextPcts[i];
+          targetHeights[i] = nextHeights[i];
+        }
+        startDropoff = curDropoff;
+        targetDropoff = dropInfo.dropPct;
+        counterAnimStart = now;
+
+        // Position drop-off anchor cleanly under the steepest drop-off slope
+        const stageCenterPct = (dropInfo.stageIdx * 0.25 + 0.116) * 73.68;
+        dropoffAnchor.style.left = `${stageCenterPct.toFixed(2)}%`;
+
+        // Update header dot & label
+        deptLabel.textContent = dept.name;
+        statusDot.style.backgroundColor = dept.dotColor;
+        statusDot.style.boxShadow = `0 0 9px 1.5px ${dept.dotGlow}`;
+
+        // Trigger a fresh scanning pulse wave on dataset/department switch
+        if (triggerSweep && (activeDeptIdx === 0 || activeDeptIdx === 1 || activeDeptIdx === 3)) {
+          waveX = -0.14;
+          waveRestTimer = 0;
+        }
+        transitionBoost = 1.0;
+      }
+
+      function setHoveredStage(idx) {
+        if (idx === hoveredStage) return;
+        hoveredStage = idx;
+        metricCols.forEach((col, i) => {
+          col.classList.toggle('dimmed', idx !== -1 && i !== idx);
+          col.classList.toggle('focused', idx !== -1 && i === idx);
+        });
+      }
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const next = btn.dataset.tab;
+          if (next === activeTab) return;
+          activeTab = next;
+          tabBtns.forEach(b => {
+            const on = b.dataset.tab === activeTab;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          updateTabIndicator(false);
+          triggerDataTransition(true);
+        });
+      });
+
+      deptBtn.addEventListener('click', () => {
+        activeDeptIdx = (activeDeptIdx + 1) % DEPARTMENTS.length;
+        triggerDataTransition(true);
+      });
+
+      metricCols.forEach((col, i) => {
+        col.addEventListener('mouseenter', () => setHoveredStage(i));
+        col.addEventListener('mouseleave', () => {
+          if (!mouseState.inFunnel) setHoveredStage(-1);
+        });
+      });
+
+      // =========================================================================
+      // 3. EXACT FUNNEL CONTOUR MATH (matches GLSL fragment shader sub-pixelly)
+      // =========================================================================
+      const FUNNEL_WIDTH_FRAC = 0.7368; // 556 / 755
+      const FUNNEL_CY_FRAC = 0.582;     // leaves clean obsidian space below for drop-off badge
+      const MAX_HALF_H_FRAC = 0.254;    // exact match to video proportion
+      const CURVE_START = 0.15;
+      const CURVE_SPAN = 0.57;
+
+      let viewW = 754;
+      let viewH = 388;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      let funnelW = viewW * FUNNEL_WIDTH_FRAC;
+      let funnelCy = viewH * FUNNEL_CY_FRAC;
+      let maxHalfH = viewH * MAX_HALF_H_FRAC;
+
+      function funnelHalfHeightPx(xPx) {
+        const u = Math.max(0, Math.min(1, xPx / funnelW));
+        const h0 = curHeights[0] * maxHalfH;
+        const h1 = curHeights[1] * maxHalfH;
+        const h2 = curHeights[2] * maxHalfH;
+        const h3 = curHeights[3] * maxHalfH;
+
+        if (u < 0.25) {
+          const s = u * 4.0;
+          const t = Math.max(0, Math.min(1, (s - CURVE_START) / CURVE_SPAN));
+          const e = 0.5 - 0.5 * Math.cos(Math.PI * t);
+          return h0 + (h1 - h0) * e;
+        }
+        if (u < 0.50) {
+          const s = (u - 0.25) * 4.0;
+          const t = Math.max(0, Math.min(1, (s - CURVE_START) / CURVE_SPAN));
+          const e = 0.5 - 0.5 * Math.cos(Math.PI * t);
+          return h1 + (h2 - h1) * e;
+        }
+        if (u < 0.75) {
+          const s = (u - 0.50) * 4.0;
+          const t = Math.max(0, Math.min(1, (s - CURVE_START) / CURVE_SPAN));
+          const e = 0.5 - 0.5 * Math.cos(Math.PI * t);
+          return h2 + (h3 - h2) * e;
+        }
+        return h3;
+      }
+
+      // =========================================================================
+      // 4. MOUSE / TOUCH POINTER TRACKING FOR PARTICLE REPULSION & STAGE FOCUS
+      // =========================================================================
+      const mouseState = {
+        x: -9999,
+        y: -9999,
+        smoothX: -9999,
+        smoothY: -9999,
+        active: false,
+        strength: 0,
+        inFunnel: false,
+      };
+
+      function updatePointer(clientX, clientY) {
+        const rect = funnelBody.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        mouseState.x = x;
+        mouseState.y = y;
+
+        const halfH = funnelHalfHeightPx(x);
+        const insideX = x >= 0 && x <= funnelW + 8;
+        const insideY = Math.abs(y - funnelCy) <= halfH + 22;
+        mouseState.inFunnel = insideX && insideY;
+        mouseState.active = insideX && Math.abs(y - funnelCy) <= halfH + 64;
+
+        if (mouseState.active && mouseState.smoothX < -1000) {
+          mouseState.smoothX = x;
+          mouseState.smoothY = y;
+        }
+
+        if (mouseState.inFunnel) {
+          const stageIdx = Math.max(0, Math.min(3, Math.floor((x / funnelW) * 4)));
+          setHoveredStage(stageIdx);
+        } else {
+          // Only clear if not hovering directly over a metric column
+          if (y > 90 || x > funnelW) {
+            setHoveredStage(-1);
+          }
+        }
+      }
+
+      funnelBody.addEventListener('pointermove', (e) => {
+        updatePointer(e.clientX, e.clientY);
+      });
+
+      funnelBody.addEventListener('pointerdown', (e) => {
+        updatePointer(e.clientX, e.clientY);
+      });
+
+      function clearPointer() {
+        mouseState.active = false;
+        mouseState.inFunnel = false;
+        setHoveredStage(-1);
+      }
+
+      funnelBody.addEventListener('pointerleave', clearPointer);
+      document.addEventListener('pointerleave', clearPointer);
+      window.addEventListener('blur', clearPointer);
+
+      // =========================================================================
+      // 5. WEBGL INITIALIZATION & TWO-PASS GPU SHADERS
+      // =========================================================================
+      const gl = canvas.getContext('webgl', {
+        alpha: true,
+        antialias: true,
+        premultipliedAlpha: true,
+        powerPreference: 'high-performance',
+      });
+
+      if (!gl) {
+        funnelBody.insertAdjacentHTML(
+          'beforeend',
+          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#888;font-size:13px;">当前浏览器暂不支持 WebGL 渲染。</div>'
+        );
+        return;
+      }
+
+      function compileShader(type, src) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      function createProgram(vsSrc, fsSrc) {
+        const vs = compileShader(gl.VERTEX_SHADER, vsSrc);
+        const fs = compileShader(gl.FRAGMENT_SHADER, fsSrc);
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+          console.error('Program link error:', gl.getProgramInfoLog(prog));
+          return null;
+        }
+        return prog;
+      }
+
+      // ── Pass 1: Analytic SDF Funnel Body, Glow, Neon Outline & Dividers ──────
+      const bgVertSrc = `
+        attribute vec2 aPos;
+        varying vec2 vUv;
+        void main() {
+          vUv = aPos * 0.5 + 0.5;
+          gl_Position = vec4(aPos, 0.0, 1.0);
+        }
+      `;
+
+      const bgFragSrc = `
+        precision highp float;
+
+        varying vec2 vUv;
+
+        uniform vec2 uRes;          // CSS pixel dimensions (viewW, viewH)
+        uniform float uFunnelW;     // funnel width in CSS px
+        uniform float uCy;          // funnel centerline Y in CSS px
+        uniform float uMaxHalfH;    // max half-height in CSS px
+        uniform vec4 uHeights;      // normalized stage heights [h0, h1, h2, h3]
+
+        uniform vec3 uFill0;
+        uniform vec3 uFill1;
+        uniform vec3 uFill2;
+        uniform vec3 uFill3;
+
+        uniform vec3 uEdge0;
+        uniform vec3 uEdge1;
+        uniform vec3 uEdge2;
+        uniform vec3 uEdge3;
+
+        uniform float uWaveX;       // normalized sweep position
+        uniform float uWaveAmp;     // sweep wave intensity (All / Cardio / Ortho)
+        uniform float uBreath;      // respiratory glow factor (Pulmonology)
+        uniform float uPulse;       // cardiac systolic pulse (Cardiology)
+        uniform float uNeuroWeight; // Neurology ambient glow
+        uniform float uTime;
+        uniform vec2 uMouse;        // cursor position in CSS px
+        uniform float uMouseAmp;    // 0..1 smooth hover factor
+        uniform float uHoverStage;  // -1 or 0..3
+
+        const float PI = 3.14159265359;
+        const float CURVE_START = 0.15;
+        const float CURVE_SPAN  = 0.57;
+
+        vec3 sampleRamp(float u, vec3 c0, vec3 c1, vec3 c2, vec3 c3) {
+          float t = clamp(u, 0.0, 1.0) * 3.0;
+          if (t < 1.0) return mix(c0, c1, t);
+          if (t < 2.0) return mix(c1, c2, t - 1.0);
+          return mix(c2, c3, t - 2.0);
+        }
+
+        // Returns vec2(halfHeightPx, dHalfHeight_dx)
+        vec2 funnelProfile(float xPx) {
+          float u = clamp(xPx / uFunnelW, 0.0, 1.0);
+          float h0 = uHeights.x * uMaxHalfH;
+          float h1 = uHeights.y * uMaxHalfH;
+          float h2 = uHeights.z * uMaxHalfH;
+          float h3 = uHeights.w * uMaxHalfH;
+
+          float ha = h3;
+          float hb = h3;
+          float s = 0.0;
+          float hasSlope = 0.0;
+
+          if (u < 0.25) {
+            ha = h0; hb = h1; s = u * 4.0; hasSlope = 1.0;
+          } else if (u < 0.50) {
+            ha = h1; hb = h2; s = (u - 0.25) * 4.0; hasSlope = 1.0;
+          } else if (u < 0.75) {
+            ha = h2; hb = h3; s = (u - 0.50) * 4.0; hasSlope = 1.0;
+          }
+
+          float t = clamp((s - CURVE_START) / CURVE_SPAN, 0.0, 1.0);
+          float e = 0.5 - 0.5 * cos(PI * t);
+          float h = mix(ha, hb, e);
+
+          float inSlope = hasSlope * step(0.0001, t) * step(t, 0.9999);
+          float dhdx = inSlope * (hb - ha) * (0.5 * PI * sin(PI * t)) * (4.0 / (CURVE_SPAN * uFunnelW));
+          return vec2(h, dhdx);
+        }
+
+        float sweepVeilProfile(float u, float wx) {
+          float d = u - wx;
+          // Razor-sharp vertical cutoff on the right leading edge (~2px), smooth luminous tail to the left
+          float sharpCut = smoothstep(0.0045, -0.0015, d);
+          float tail = exp(min(d, 0.0) / 0.088);
+          return sharpCut * tail * smoothstep(-0.22, -0.02, wx) * smoothstep(1.28, 1.00, wx);
+        }
+
+        void main() {
+          // Convert fragment to top-left CSS pixel coordinates
+          vec2 p = vec2(vUv.x * uRes.x, (1.0 - vUv.y) * uRes.y);
+          float u = clamp(p.x / uFunnelW, 0.0, 1.0);
+
+          vec2 prof = funnelProfile(p.x);
+          float h = prof.x;
+          float dh = prof.y;
+
+          // First-order exact Euclidean signed distance to curved top/bottom boundaries
+          float dy = abs(p.y - uCy) - h;
+          float dCurve = dy / sqrt(1.0 + dh * dh);
+          float dRight = p.x - uFunnelW;
+
+          // Combine curved walls + vertical right end-cap into clean SDF
+          float sdf = length(max(vec2(dCurve, dRight), 0.0)) + min(max(dCurve, dRight), 0.0);
+          float inside = smoothstep(0.65, -0.65, sdf);
+
+          vec3 fillCol = sampleRamp(u, uFill0, uFill1, uFill2, uFill3);
+          vec3 edgeCol = sampleRamp(u, uEdge0, uEdge1, uEdge2, uEdge3);
+
+          // Wave & breathing luminance boosts
+          float wave = sweepVeilProfile(u, uWaveX) * uWaveAmp;
+          float breathGlow = uBreath * (0.85 + 0.35 * sin(uTime * 1.9 - u * 1.8));
+          float cardioPulse = uPulse;
+
+          vec3 col = vec3(0.0);
+
+          // ── 1. Interior smooth translucent gradient wash ──
+          if (inside > 0.001) {
+            float yNorm = clamp(abs(p.y - uCy) / max(h, 1.0), 0.0, 1.0);
+            // Rich depth: slightly luminous core with subtle rim sheen near top/bottom wall
+            float edgeSheen = pow(yNorm, 2.4) * 0.28;
+            float baseWash = 0.56 + edgeSheen + breathGlow * 0.18 + cardioPulse * 0.12;
+
+            // Subtle stage brightness lift when hovering that stage
+            float stageIdx = floor(clamp(u, 0.0, 0.9999) * 4.0);
+            float isHoverStage = uHoverStage >= 0.0 ? (1.0 - step(0.5, abs(stageIdx - uHoverStage))) : 0.0;
+            float otherDim = uHoverStage >= 0.0 ? mix(0.84, 1.08, isHoverStage) : 1.0;
+
+            // Subtle warm pocket glow right under the cursor where dots clear away
+            float mDist = length(p - uMouse);
+            float cursorWarmth = exp(-mDist * mDist / 2400.0) * uMouseAmp * 0.22;
+
+            vec3 bodyColor = fillCol * (baseWash * otherDim) + edgeCol * cursorWarmth;
+            // Luminous diffuser veil behind sharp vertical wavefront cutoff
+            bodyColor += mix(edgeCol, vec3(1.0), 0.58) * wave * 0.44;
+            // Soft radial vignette at extreme left entry
+            bodyColor *= 0.88 + 0.12 * smoothstep(0.0, 0.07, u);
+
+            col += bodyColor * inside;
+          }
+
+          // ── 2. Multi-layer Neon Edge Bloom & Crisp Jewel-like Colored Outline ──
+          float dAbs = abs(sdf);
+          float glowIntensity = 1.0 + wave * 0.36 + breathGlow * 0.28 + cardioPulse * 0.20 + uNeuroWeight * 0.10;
+
+          // Wide ambient outer halo bleeding softly into dark obsidian card
+          float outerHalo = exp(-max(sdf, 0.0) * 0.088) * 0.16 * smoothstep(-3.0, 0.5, sdf);
+          // Tight inner+outer colored aura
+          float tightAura = exp(-dAbs * 0.46) * 0.34;
+          // Slender crisp colored hairline stroke (~1.1px)
+          float coreLine = smoothstep(1.12, 0.26, dAbs);
+
+          vec3 neon = edgeCol * outerHalo * glowIntensity
+                    + mix(edgeCol, vec3(1.0), 0.10) * tightAura * glowIntensity
+                    + mix(edgeCol, vec3(1.0), 0.18 + wave * 0.34) * coreLine * 0.94;
+
+          // Right-edge fade cleanly outside end cap
+          col += neon;
+
+          // ── 3. Three Vertical Stage Dividers (solid inside, faint dashed above) ──
+          float divMask = 0.0;
+          float dashMask = 0.0;
+          for (int i = 1; i <= 3; i++) {
+            float dx = abs(p.x - uFunnelW * (float(i) * 0.25));
+            float linePx = smoothstep(1.22, 0.30, dx);
+            // Solid bright divider strictly inside funnel
+            divMask = max(divMask, linePx * inside);
+            // Subtle vertical dashed guide extending upward to the top header border
+            float aboveTop = step(p.y, uCy - h - 2.0) * step(1.0, p.y);
+            float dash = step(0.42, fract(p.y / 6.0));
+            dashMask = max(dashMask, smoothstep(0.85, 0.15, dx) * aboveTop * dash);
+          }
+
+          // Crisp luminous interior dividers
+          vec3 divCol = mix(edgeCol, vec3(1.0), 0.84);
+          col = mix(col, divCol, clamp(divMask * 0.93, 0.0, 0.95));
+          col += vec3(1.0) * dashMask * 0.085;
+
+          // Soft alpha for clean compositing onto #040406 card
+          float alpha = clamp(max(inside, max(outerHalo * 2.2 + tightAura + coreLine, max(divMask, dashMask * 0.15))), 0.0, 1.0);
+          gl_FragColor = vec4(col, alpha);
+        }
+      `;
+
+      // ── Pass 2: GPU Particle Dot-Matrix Grid (5,000+ spring-repelled dots) ───
+      const ptVertSrc = `
+        precision highp float;
+
+        attribute vec2 aPos;        // live particle position in CSS px
+        attribute float aSize;      // dot core size in CSS px
+        attribute float aAlpha;     // dot opacity
+        attribute float aWhite;     // whiteness boost 0..1
+        attribute float aU;         // normalized x in 0..1 for color ramp
+
+        uniform vec2 uRes;
+        uniform float uDpr;
+
+        varying float vAlpha;
+        varying float vWhite;
+        varying float vU;
+        varying float vCoreFrac;
+
+        void main() {
+          vec2 ndc = vec2(
+            (aPos.x / uRes.x) * 2.0 - 1.0,
+            1.0 - (aPos.y / uRes.y) * 2.0
+          );
+          gl_Position = vec4(ndc, 0.0, 1.0);
+
+          // Give extra point-sprite margin for crisp anti-aliasing & subtle micro-halo
+          float spriteCss = max(aSize * 2.15, 3.2);
+          gl_PointSize = spriteCss * uDpr;
+          vCoreFrac = clamp(aSize / spriteCss, 0.12, 0.48);
+          vAlpha = aAlpha;
+          vWhite = aWhite;
+          vU = aU;
+        }
+      `;
+
+      const ptFragSrc = `
+        precision highp float;
+
+        uniform vec3 uEdge0;
+        uniform vec3 uEdge1;
+        uniform vec3 uEdge2;
+        uniform vec3 uEdge3;
+
+        varying float vAlpha;
+        varying float vWhite;
+        varying float vU;
+        varying float vCoreFrac;
+
+        vec3 sampleRamp(float u, vec3 c0, vec3 c1, vec3 c2, vec3 c3) {
+          float t = clamp(u, 0.0, 1.0) * 3.0;
+          if (t < 1.0) return mix(c0, c1, t);
+          if (t < 2.0) return mix(c1, c2, t - 1.0);
+          return mix(c2, c3, t - 2.0);
+        }
+
+        void main() {
+          if (vAlpha <= 0.005) discard;
+
+          vec2 q = abs(gl_PointCoord - 0.5);
+          // Crisp rounded-square SDF for iconic LED matrix dot look
+          float halfBox = vCoreFrac * 0.5;
+          float r = halfBox * 0.24;
+          vec2 dVec = max(q - (halfBox - r), 0.0);
+          float dSquare = length(dVec) - r;
+
+          float core = smoothstep(0.06, -0.025, dSquare);
+          // Subtle additive bloom halo on bright wave / spark / repelled dots
+          float halo = exp(-dot(q, q) * 14.0) * (0.16 + vWhite * 0.46);
+
+          float shape = max(core, halo);
+          if (shape <= 0.004) discard;
+
+          vec3 rampCol = sampleRamp(vU, uEdge0, uEdge1, uEdge2, uEdge3);
+          vec3 tint = mix(rampCol, vec3(1.0), clamp(0.18 + vWhite * 0.82, 0.0, 1.0));
+
+          // Premultiplied output for clean additive-like brilliance over dark interior
+          float a = shape * vAlpha;
+          gl_FragColor = vec4(tint * a, a);
+        }
+      `;
+
+      const bgProg = createProgram(bgVertSrc, bgFragSrc);
+      const ptProg = createProgram(ptVertSrc, ptFragSrc);
+
+      // Full-screen quad buffer
+      const quadBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+        gl.STATIC_DRAW
+      );
+
+      // Uniform & attribute locations
+      const bgLoc = {
+        aPos: gl.getAttribLocation(bgProg, 'aPos'),
+        uRes: gl.getUniformLocation(bgProg, 'uRes'),
+        uFunnelW: gl.getUniformLocation(bgProg, 'uFunnelW'),
+        uCy: gl.getUniformLocation(bgProg, 'uCy'),
+        uMaxHalfH: gl.getUniformLocation(bgProg, 'uMaxHalfH'),
+        uHeights: gl.getUniformLocation(bgProg, 'uHeights'),
+        uFill: [0, 1, 2, 3].map(i => gl.getUniformLocation(bgProg, `uFill${i}`)),
+        uEdge: [0, 1, 2, 3].map(i => gl.getUniformLocation(bgProg, `uEdge${i}`)),
+        uWaveX: gl.getUniformLocation(bgProg, 'uWaveX'),
+        uWaveAmp: gl.getUniformLocation(bgProg, 'uWaveAmp'),
+        uBreath: gl.getUniformLocation(bgProg, 'uBreath'),
+        uPulse: gl.getUniformLocation(bgProg, 'uPulse'),
+        uNeuroWeight: gl.getUniformLocation(bgProg, 'uNeuroWeight'),
+        uTime: gl.getUniformLocation(bgProg, 'uTime'),
+        uMouse: gl.getUniformLocation(bgProg, 'uMouse'),
+        uMouseAmp: gl.getUniformLocation(bgProg, 'uMouseAmp'),
+        uHoverStage: gl.getUniformLocation(bgProg, 'uHoverStage'),
+      };
+
+      const ptLoc = {
+        aPos: gl.getAttribLocation(ptProg, 'aPos'),
+        aSize: gl.getAttribLocation(ptProg, 'aSize'),
+        aAlpha: gl.getAttribLocation(ptProg, 'aAlpha'),
+        aWhite: gl.getAttribLocation(ptProg, 'aWhite'),
+        aU: gl.getAttribLocation(ptProg, 'aU'),
+        uRes: gl.getUniformLocation(ptProg, 'uRes'),
+        uDpr: gl.getUniformLocation(ptProg, 'uDpr'),
+        uEdge: [0, 1, 2, 3].map(i => gl.getUniformLocation(ptProg, `uEdge${i}`)),
+      };
+
+      // =========================================================================
+      // 6. PARTICLE DOT-MATRIX GRID WITH SPRING-DAMPER REPULSION PHYSICS
+      // =========================================================================
+      const GRID_PITCH = 5.0; // exact 5px matrix pitch measured via autocorrelation!
+      const STRIDE = 6;       // [x, y, size, alpha, white, u]
+
+      let particleCount = 0;
+      let homeX, homeY, offX, offY, velX, velY;
+      let seedA, seedB, rowIdx, colIdx, swirlDir;
+      let gpuData;
+      const ptBuf = gl.createBuffer();
+
+      // Deterministic fast hash
+      function hash2(c, r) {
+        const s = Math.sin(c * 127.1 + r * 311.7) * 43758.5453123;
+        return s - Math.floor(s);
+      }
+
+      function rebuildParticleGrid() {
+        const cols = Math.floor((funnelW - 4) / GRID_PITCH);
+        const halfRows = Math.ceil((maxHalfH + 4) / GRID_PITCH);
+        const rows = halfRows * 2 + 1;
+        particleCount = cols * rows;
+
+        homeX = new Float32Array(particleCount);
+        homeY = new Float32Array(particleCount);
+        offX = new Float32Array(particleCount);
+        offY = new Float32Array(particleCount);
+        velX = new Float32Array(particleCount);
+        velY = new Float32Array(particleCount);
+        seedA = new Float32Array(particleCount);
+        seedB = new Float32Array(particleCount);
+        rowIdx = new Int16Array(particleCount);
+        colIdx = new Int16Array(particleCount);
+        swirlDir = new Float32Array(particleCount);
+        gpuData = new Float32Array(particleCount * STRIDE);
+
+        let idx = 0;
+        for (let r = -halfRows; r <= halfRows; r++) {
+          const hy = funnelCy + r * GRID_PITCH;
+          for (let c = 0; c < cols; c++) {
+            const hx = 3.0 + c * GRID_PITCH;
+            homeX[idx] = hx;
+            homeY[idx] = hy;
+            rowIdx[idx] = r + halfRows;
+            colIdx[idx] = c;
+            seedA[idx] = hash2(c + 1.3, r + 41.7);
+            seedB[idx] = hash2(c * 1.9 + 7.1, r * 2.3 + 13.7);
+            swirlDir[idx] = (hash2(c * 3.1, r * 5.7) - 0.5) * 1.15;
+            idx++;
+          }
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, gpuData.byteLength, gl.DYNAMIC_DRAW);
+      }
+
+      // Per-row flow stream parameters for "All departments" mode (3 organic streaks per row)
+      const MAX_ROWS = 128;
+      const rowSpeed = new Float32Array(MAX_ROWS);
+      const rowPhase1 = new Float32Array(MAX_ROWS);
+      const rowPhase2 = new Float32Array(MAX_ROWS);
+      const rowPhase3 = new Float32Array(MAX_ROWS);
+      const rowLen1 = new Float32Array(MAX_ROWS);
+      const rowLen2 = new Float32Array(MAX_ROWS);
+      const rowWeight = new Float32Array(MAX_ROWS);
+      for (let r = 0; r < MAX_ROWS; r++) {
+        rowSpeed[r] = 0.065 + hash2(r, 3.7) * 0.075;
+        rowPhase1[r] = hash2(r, 11.3);
+        rowPhase2[r] = hash2(r, 29.1);
+        rowPhase3[r] = hash2(r, 71.7);
+        rowLen1[r] = 0.065 + hash2(r, 41.2) * 0.065; // ~4-8 dots wide
+        rowLen2[r] = 0.045 + hash2(r, 61.8) * 0.055; // ~3-6 dots wide
+        rowWeight[r] = 0.55 + hash2(r, 53.9) * 0.45;
+      }
+
+      function handleResize() {
+        const rect = funnelBody.getBoundingClientRect();
+        if (rect.width < 10 || rect.height < 10) return;
+        viewW = rect.width;
+        viewH = rect.height;
+        dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        funnelW = viewW * FUNNEL_WIDTH_FRAC;
+        funnelCy = viewH * FUNNEL_CY_FRAC;
+        maxHalfH = viewH * MAX_HALF_H_FRAC;
+
+        canvas.width = Math.round(viewW * dpr);
+        canvas.height = Math.round(viewH * dpr);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        rebuildParticleGrid();
+        updateTabIndicator(true);
+      }
+
+      const ro = new ResizeObserver(handleResize);
+      ro.observe(funnelBody);
+      handleResize();
+
+      // =========================================================================
+      // 7. ANIMATION LOOP (60fps Physics, Morphing, Counters & GPU Render)
+      // =========================================================================
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function formatInt(n) {
+        return Math.round(n).toLocaleString('en-US');
+      }
+
+      // Two-sided dot-matrix wave profile:
+      // Trails behind wx matching the veil, AND extends crisply AHEAD of the sharp vertical
+      // background cutoff so dots pop starkly against the dark background (matching 4x video zoom!)
+      function jsDotWave(u, wx, leadDecay) {
+        const d = u - wx;
+        if (d > 0) {
+          return Math.exp(-d / leadDecay);
+        }
+        return Math.exp(d / 0.088);
+      }
+
+      let lastTime = performance.now();
+      let elapsed = 0;
+
+      function tick(now) {
+        requestAnimationFrame(tick);
+        const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
+        lastTime = now;
+        elapsed += dt;
+
+        // ── 7a. Smoothly animate numeric counters ──
+        if (counterAnimStart > 0) {
+          const p = Math.min(1, (now - counterAnimStart) / COUNTER_ANIM_MS);
+          const e = easeOutCubic(p);
+          for (let i = 0; i < 4; i++) {
+            displayCounts[i] = startCounts[i] + (targetCounts[i] - startCounts[i]) * e;
+            displayPcts[i] = startPcts[i] + (targetPcts[i] - startPcts[i]) * e;
+            valEls[i].textContent = formatInt(displayCounts[i]);
+            pctEls[i].textContent = `${displayPcts[i].toFixed(1)}%`;
+          }
+          recoveryRateEl.textContent = `${displayPcts[3].toFixed(1)}%`;
+          curDropoff = startDropoff + (targetDropoff - startDropoff) * e;
+          dropoffPill.textContent = `-${curDropoff.toFixed(1)}% 最大流失环节`;
+          if (p >= 1) counterAnimStart = 0;
+        }
+
+        // ── 7b. Smoothly morph funnel heights, colors, and department modes ──
+        const morphK = 1 - Math.exp(-dt * 8.8);
+        const colorK = 1 - Math.exp(-dt * 6.5);
+        const dept = DEPARTMENTS[activeDeptIdx];
+
+        for (let i = 0; i < 4; i++) {
+          curHeights[i] += (targetHeights[i] - curHeights[i]) * morphK;
+          for (let c = 0; c < 3; c++) {
+            curFill[i][c] += (dept.fill[i][c] - curFill[i][c]) * colorK;
+            curEdge[i][c] += (dept.edge[i][c] - curEdge[i][c]) * colorK;
+          }
+        }
+        for (let m = 0; m < 5; m++) {
+          const tgt = m === activeDeptIdx ? 1.0 : 0.0;
+          modeWeights[m] += (tgt - modeWeights[m]) * colorK;
+        }
+
+        // ── 7c. Update smooth pointer state ──
+        const ptrK = 1 - Math.exp(-dt * 18.0);
+        if (mouseState.active) {
+          mouseState.smoothX += (mouseState.x - mouseState.smoothX) * ptrK;
+          mouseState.smoothY += (mouseState.y - mouseState.smoothY) * ptrK;
+        }
+        const targetStrength = mouseState.active ? 1.0 : 0.0;
+        mouseState.strength += (targetStrength - mouseState.strength) * (1 - Math.exp(-dt * 10.0));
+
+        // ── 7d. Advance sweep wave (345px/s across 556px ≈ 0.62 norm units/sec) ──
+        const wAll = modeWeights[0];
+        const wCardio = modeWeights[1];
+        const wNeuro = modeWeights[2];
+        const wOrtho = modeWeights[3];
+        const wPulmo = modeWeights[4];
+
+        const sweepActiveWeight = Math.min(1.0, wAll + wCardio + wOrtho);
+        const sweepSpeed = 0.62; // exact match to measured 345px/s on 556px funnel
+        if (waveRestTimer > 0) {
+          waveRestTimer -= dt;
+          if (waveRestTimer <= 0) {
+            waveX = -0.18;
+          }
+        } else {
+          waveX += sweepSpeed * dt;
+          if (waveX > 1.32) {
+            waveX = -0.35;
+            // Cardiology pauses slightly longer between heartbeat cycles; All & Ortho cycle crisply
+            waveRestTimer = wCardio > 0.5 ? 1.05 : 0.68;
+          }
+        }
+        transitionBoost *= Math.exp(-dt * 3.8);
+
+        const waveWindow =
+          Math.max(0, Math.min(1, (waveX + 0.22) / 0.20)) *
+          Math.max(0, Math.min(1, (1.24 - waveX) / 0.26));
+        const waveAmp = sweepActiveWeight * waveWindow;
+
+        // Cardiology gentle double-beat systolic pulse
+        const heartPhase = (elapsed * 0.85) % 1.0;
+        const beat1 = Math.exp(-Math.pow((heartPhase - 0.14) / 0.06, 2));
+        const beat2 = 0.55 * Math.exp(-Math.pow((heartPhase - 0.30) / 0.08, 2));
+        const cardioPulse = wCardio * (beat1 + beat2);
+
+        // Pulmonology smooth respiratory breath
+        const breathCycle = 0.5 + 0.5 * Math.sin(elapsed * 1.9);
+
+        // ── 7e. Update 5,000+ Particles (Spring-Repulsion + Mode Shaders) ──
+        // Precompute column funnel half-heights & dot wave profiles once per column!
+        const cols = Math.floor((funnelW - 4) / GRID_PITCH);
+        const colHalfH = new Float32Array(cols);
+        const colWaveStd = new Float32Array(cols);
+        const colWaveWide = new Float32Array(cols);
+        for (let c = 0; c < cols; c++) {
+          const hx = 3.0 + c * GRID_PITCH;
+          const uCol = hx / funnelW;
+          colHalfH[c] = funnelHalfHeightPx(hx);
+          if (waveAmp > 0.001) {
+            colWaveStd[c] = jsDotWave(uCol, waveX, 0.062) * waveAmp;
+            colWaveWide[c] = jsDotWave(uCol, waveX, 0.115) * waveAmp;
+          }
+        }
+
+        const mx = mouseState.smoothX;
+        const my = mouseState.smoothY;
+        const mStr = mouseState.strength;
+        const repelRadius = Math.max(66, funnelW * 0.145);
+        const repelRadiusSq = repelRadius * repelRadius;
+        const springK = 112.0;
+        const dampK = Math.exp(-dt * 9.6);
+
+        const invFunnelW = 1.0 / funnelW;
+        let outIdx = 0;
+
+        for (let i = 0; i < particleCount; i++) {
+          const hx = homeX[i];
+          const hy = homeY[i];
+          const c = colIdx[i];
+          const r = rowIdx[i];
+          const halfH = colHalfH[c];
+
+          // Smooth edge mask against live morphed funnel contour
+          const distFromWall = halfH - 2.2 - Math.abs(hy - funnelCy);
+          if (distFromWall <= -2.5 && offX[i] * offX[i] + offY[i] * offY[i] < 0.25) {
+            gpuData[outIdx] = -100;
+            gpuData[outIdx + 1] = -100;
+            gpuData[outIdx + 2] = 0;
+            gpuData[outIdx + 3] = 0;
+            gpuData[outIdx + 4] = 0;
+            gpuData[outIdx + 5] = 0;
+            outIdx += STRIDE;
+            continue;
+          }
+
+          const edgeFade = Math.max(0, Math.min(1, (distFromWall + 2.5) / 4.0));
+
+          // Spring-damper physics toward home grid position
+          let ox = offX[i];
+          let oy = offY[i];
+          let vx = velX[i];
+          let vy = velY[i];
+
+          // Spring restoring force back to grid home
+          vx += -ox * springK * dt;
+          vy += -oy * springK * dt;
+
+          // Cursor repulsion & organic particle dispersion!
+          if (mStr > 0.01 && edgeFade > 0.05) {
+            const px = hx + ox;
+            const py = hy + oy;
+            const dx = px - mx;
+            const dy = py - my;
+            const dSq = dx * dx + dy * dy;
+            if (dSq < repelRadiusSq) {
+              const dist = Math.sqrt(dSq) + 0.001;
+              const falloff = 1.0 - dist / repelRadius;
+              const force = Math.pow(falloff, 1.55) * 3200.0 * mStr;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              // Add per-particle angular jitter so scattered specks spray organically
+              const ang = swirlDir[i] * (0.55 + 0.65 * falloff);
+              const ca = Math.cos(ang);
+              const sa = Math.sin(ang);
+              const dirX = nx * ca - ny * sa;
+              const dirY = nx * sa + ny * ca;
+              vx += dirX * force * dt;
+              vy += dirY * force * dt;
+            }
+          }
+
+          vx *= dampK;
+          vy *= dampK;
+          ox += vx * dt;
+          oy += vy * dt;
+
+          // Clamp extreme displacement so sparks stay cleanly near the funnel halo
+          const dispSq = ox * ox + oy * oy;
+          if (dispSq > 72 * 72) {
+            const invD = 72 / Math.sqrt(dispSq);
+            ox *= invD;
+            oy *= invD;
+            vx *= 0.4;
+            vy *= 0.4;
+          }
+
+          offX[i] = ox;
+          offY[i] = oy;
+          velX[i] = vx;
+          velY[i] = vy;
+
+          const px = hx + ox;
+          const py = hy + oy;
+          const u = hx * invFunnelW;
+          const dispNorm = Math.min(1.0, Math.sqrt(dispSq) / 42.0);
+
+          // ── Compute Mode-Specific Illumination & Square Dot Size ──
+          // Ultra-subtle hushed resting base grid (matching 4x video zoom), with high-contrast
+          // dynamic streaks / synaptic sparks / two-part scanning wavefront!
+          const wv = colWaveStd[c];
+          const wvWide = colWaveWide[c];
+          const BASE_ALPHA = 0.10;
+          const BASE_SIZE = 1.54;
+          const BASE_WHITE = 0.04;
+          let size = BASE_SIZE;
+          let alpha = BASE_ALPHA;
+          let white = BASE_WHITE;
+
+          // Mode 0: All departments — quiet velvety base grid + high-contrast horizontal dot clusters + wave
+          if (wAll > 0.005) {
+            const rMod = r % MAX_ROWS;
+            const sp = rowSpeed[rMod];
+            const len1 = rowLen1[rMod];
+            const len2 = rowLen2[rMod];
+
+            let p1 = (u - elapsed * sp + rowPhase1[rMod]) % 1.0;
+            if (p1 < 0) p1 += 1.0;
+            let p2 = (u - elapsed * (sp * 0.78) + rowPhase2[rMod]) % 1.0;
+            if (p2 < 0) p2 += 1.0;
+            let p3 = (u - elapsed * (sp * 1.18) + rowPhase3[rMod]) % 1.0;
+            if (p3 < 0) p3 += 1.0;
+
+            // Smooth symmetric-ish bright 3-8 dot horizontal segments matching z_all_rest.png!
+            const s1 = p1 < len1 ? Math.pow(Math.sin((p1 / len1) * Math.PI), 1.35) : 0.0;
+            const s2 = p2 < len2 ? Math.pow(Math.sin((p2 / len2) * Math.PI), 1.45) * 0.85 : 0.0;
+            const s3 = p3 < 0.048 ? Math.pow(Math.sin((p3 / 0.048) * Math.PI), 1.5) * 0.72 : 0.0;
+            // Subtle per-dot micro-variation inside each streak so adjacent dots shimmer organically
+            const micro = 0.82 + 0.18 * Math.sin(c * 1.7 + elapsed * 3.2 + r * 0.9);
+            const stream = Math.max(s1, s2, s3) * rowWeight[rMod] * micro;
+
+            const aAll = 0.092 + stream * 0.78 + wv * 0.88;
+            const sAll = 1.52 + stream * 0.82 + wv * 1.72;
+            const whAll = 0.03 + stream * 0.76 + wv * 0.92;
+
+            alpha += (aAll - BASE_ALPHA) * wAll;
+            size += (sAll - BASE_SIZE) * wAll;
+            white += (whAll - BASE_WHITE) * wAll;
+          }
+
+          // Mode 1: Cardiology — hushed ruby base matrix + sharp-cut veil / forward-bleeding dot wave
+          if (wCardio > 0.005) {
+            const aCar = 0.095 + cardioPulse * 0.08 + wv * 0.88;
+            const sCar = 1.50 + cardioPulse * 0.16 + wv * 1.78;
+            const whCar = 0.03 + cardioPulse * 0.10 + wv * 0.94;
+
+            alpha += (aCar - BASE_ALPHA) * wCardio;
+            size += (sCar - BASE_SIZE) * wCardio;
+            white += (whCar - BASE_WHITE) * wCardio;
+          }
+
+          // Mode 2: Neurology — hushed deep-violet matrix + crisp high-contrast synaptic firing stars
+          if (wNeuro > 0.005) {
+            const rate = 0.42 + seedA[i] * 0.78;
+            const phase = (elapsed * rate + seedB[i] * 17.3) % 1.0;
+            let spark = 0.0;
+            if (phase < 0.105) {
+              const localT = phase / 0.105;
+              spark = localT < 0.15 ? localT / 0.15 : Math.exp(-(localT - 0.15) * 3.6);
+              spark *= seedA[i] > 0.22 ? 1.0 : 0.45;
+            }
+            const aNeu = 0.105 + spark * 0.895;
+            const sNeu = 1.48 + spark * 1.32;
+            const whNeu = 0.05 + spark * 0.93;
+
+            alpha += (aNeu - BASE_ALPHA) * wNeuro;
+            size += (sNeu - BASE_SIZE) * wNeuro;
+            white += (whNeu - BASE_WHITE) * wNeuro;
+          }
+
+          // Mode 3: Orthopedics — quiet warm bronze matrix + wide forward-gleaming crisp white square beam
+          if (wOrtho > 0.005) {
+            const orthoWave = wvWide > 0.001 ? Math.pow(wvWide, 0.82) : 0.0;
+            const aOrt = 0.135 + orthoWave * 0.865;
+            const sOrt = 1.62 + orthoWave * 1.88;
+            const whOrt = 0.05 + orthoWave * 0.93;
+
+            alpha += (aOrt - BASE_ALPHA) * wOrtho;
+            size += (sOrt - BASE_SIZE) * wOrtho;
+            white += (whOrt - BASE_WHITE) * wOrtho;
+          }
+
+          // Mode 4: Pulmonology — velvety low-glare teal-mint matrix with serene respiratory glow
+          if (wPulmo > 0.005) {
+            const localBreath = 0.5 + 0.5 * Math.sin(elapsed * 1.9 - u * 2.2);
+            const yNorm = Math.abs(hy - funnelCy) / Math.max(halfH, 1.0);
+            const rimGlow = Math.pow(yNorm, 2.0) * 0.10;
+            const aPul = 0.15 + localBreath * 0.16 + rimGlow + u * 0.08;
+            const sPul = 1.54 + localBreath * 0.36 + u * 0.14;
+            const whPul = 0.06 + localBreath * 0.14 + u * 0.10;
+
+            alpha += (aPul - BASE_ALPHA) * wPulmo;
+            size += (sPul - BASE_SIZE) * wPulmo;
+            white += (whPul - BASE_WHITE) * wPulmo;
+          }
+
+          // Hover stage focus: subtly dim non-hovered stages while keeping active stage vivid
+          if (hoveredStage !== -1) {
+            const pStage = Math.min(3, Math.floor(u * 4.0));
+            if (pStage !== hoveredStage) {
+              alpha *= 0.68;
+            } else {
+              alpha = Math.min(1.0, alpha * 1.12);
+            }
+          }
+
+          // Displaced particles transform into bright sparkling motes spilling around the cursor!
+          if (dispNorm > 0.04) {
+            const sparkle = 0.65 + 0.35 * Math.sin(elapsed * 9.0 + seedA[i] * 25.0);
+            alpha = Math.min(1.0, alpha + dispNorm * 0.72 * sparkle);
+            white = Math.min(1.0, white + dispNorm * 0.68);
+            // Slightly tighter crisp sparks as they fly off the grid
+            size = size * (1.0 - dispNorm * 0.22) + dispNorm * 0.55;
+          }
+
+          // Clear dots immediately adjacent to cursor center, weighted smoothly by mStr
+          // so leaving the funnel never leaves a stale dark-dot hole during decay!
+          if (mStr > 0.02) {
+            const cdx = px - mx;
+            const cdy = py - my;
+            const cDistSq = cdx * cdx + cdy * cdy;
+            if (cDistSq < 28 * 28) {
+              const holeFactor = Math.max(0.0, (Math.sqrt(cDistSq) - 10.0) / 18.0);
+              alpha *= 1.0 - (1.0 - holeFactor) * mStr;
+            }
+          }
+
+          gpuData[outIdx]     = px;
+          gpuData[outIdx + 1] = py;
+          gpuData[outIdx + 2] = size;
+          gpuData[outIdx + 3] = Math.min(1.0, alpha) * Math.max(edgeFade, dispNorm > 0.12 ? 0.85 : 0.0);
+          gpuData[outIdx + 4] = Math.min(1.0, white);
+          gpuData[outIdx + 5] = Math.max(0.0, Math.min(1.0, px * invFunnelW));
+          outIdx += STRIDE;
+        }
+
+        // ── 7f. Render WebGL Scene ──
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.enable(gl.BLEND);
+
+        // PASS 1: Analytic SDF Funnel Body + Neon Outline + Dividers
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.useProgram(bgProg);
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+        gl.enableVertexAttribArray(bgLoc.aPos);
+        gl.vertexAttribPointer(bgLoc.aPos, 2, gl.FLOAT, false, 0, 0);
+
+        gl.uniform2f(bgLoc.uRes, viewW, viewH);
+        gl.uniform1f(bgLoc.uFunnelW, funnelW);
+        gl.uniform1f(bgLoc.uCy, funnelCy);
+        gl.uniform1f(bgLoc.uMaxHalfH, maxHalfH);
+        gl.uniform4f(bgLoc.uHeights, curHeights[0], curHeights[1], curHeights[2], curHeights[3]);
+
+        for (let i = 0; i < 4; i++) {
+          gl.uniform3f(bgLoc.uFill[i], curFill[i][0], curFill[i][1], curFill[i][2]);
+          gl.uniform3f(bgLoc.uEdge[i], curEdge[i][0], curEdge[i][1], curEdge[i][2]);
+        }
+
+        gl.uniform1f(bgLoc.uWaveX, waveX);
+        gl.uniform1f(bgLoc.uWaveAmp, waveAmp);
+        gl.uniform1f(bgLoc.uBreath, wPulmo * (0.45 + 0.55 * breathCycle));
+        gl.uniform1f(bgLoc.uPulse, cardioPulse);
+        gl.uniform1f(bgLoc.uNeuroWeight, wNeuro);
+        gl.uniform1f(bgLoc.uTime, elapsed);
+        gl.uniform2f(bgLoc.uMouse, mx, my);
+        gl.uniform1f(bgLoc.uMouseAmp, mStr);
+        gl.uniform1f(bgLoc.uHoverStage, hoveredStage);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        // PASS 2: 5,000+ GPU Dot-Matrix Particles (additive luminous blend)
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.useProgram(ptProg);
+        gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpuData);
+
+        const byteStride = STRIDE * 4;
+        gl.enableVertexAttribArray(ptLoc.aPos);
+        gl.vertexAttribPointer(ptLoc.aPos, 2, gl.FLOAT, false, byteStride, 0);
+        gl.enableVertexAttribArray(ptLoc.aSize);
+        gl.vertexAttribPointer(ptLoc.aSize, 1, gl.FLOAT, false, byteStride, 8);
+        gl.enableVertexAttribArray(ptLoc.aAlpha);
+        gl.vertexAttribPointer(ptLoc.aAlpha, 1, gl.FLOAT, false, byteStride, 12);
+        gl.enableVertexAttribArray(ptLoc.aWhite);
+        gl.vertexAttribPointer(ptLoc.aWhite, 1, gl.FLOAT, false, byteStride, 16);
+        gl.enableVertexAttribArray(ptLoc.aU);
+        gl.vertexAttribPointer(ptLoc.aU, 1, gl.FLOAT, false, byteStride, 20);
+
+        gl.uniform2f(ptLoc.uRes, viewW, viewH);
+        gl.uniform1f(ptLoc.uDpr, dpr);
+        for (let i = 0; i < 4; i++) {
+          gl.uniform3f(ptLoc.uEdge[i], curEdge[i][0], curEdge[i][1], curEdge[i][2]);
+        }
+
+        gl.drawArrays(gl.POINTS, 0, particleCount);
+
+        // Disable extra vertex attribs before next frame's Pass 1
+        gl.disableVertexAttribArray(ptLoc.aSize);
+        gl.disableVertexAttribArray(ptLoc.aAlpha);
+        gl.disableVertexAttribArray(ptLoc.aWhite);
+        gl.disableVertexAttribArray(ptLoc.aU);
+      }
+
+      // Initialize tab bar underline & start 60fps WebGL loop
+      updateTabIndicator(true);
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

@@ -12,45 +12,103 @@
 
 ## 案例画廊
 
+[打开交互画廊](https://yogupro.github.io/open-motion/) · [查看部分案例预览图](./assets/ux-motions-preview.webp)
+
 <table>
   <tr valign="top">
     <td width="50%">
-      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html"><img src="./assets/01-codex-ultra-slider.webp" alt="Codex Ultra 能量滑轨，紫色极光填满轨道" width="480"></a><br>
-      <strong>Codex Ultra 能量滑轨</strong><br>
-      弹簧旋钮、极光填充与挡位粒子反馈。<br>
-      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html">在线体验</a> · <a href="./01-codex-ultra-slider/">案例资料</a> · <a href="./assets/01-codex-ultra-slider.mp4">MP4 演示</a>
+      <strong>液化边缘吸附</strong><br>
+      拖动胶囊离开屏幕边缘，观察液桥拉伸、断开与重新吸附。<br>
+      <a href="https://yogupro.github.io/open-motion/05-liquid-dock/index.html">在线体验</a> · <a href="./05-liquid-dock/README.md">案例资料</a>
+    </td>
+    <td width="50%">
+      <strong>Before / After 拖拽对比</strong><br>
+      拖动同一条分割线，比较回弹、惯性与磁吸三种手感。<br>
+      <a href="https://yogupro.github.io/open-motion/06-before-after-physics/index.html">在线体验</a> · <a href="./06-before-after-physics/README.md">案例资料</a>
+    </td>
+  </tr>
+  <tr valign="top">
+    <td width="50%">
+      <strong>患者流转漏斗</strong><br>
+      切换诊疗场景，观察漏斗轮廓、数字与粒子同步过渡。<br>
+      <a href="https://yogupro.github.io/open-motion/07-patient-funnel-webgl/index.html">在线体验</a> · <a href="./07-patient-funnel-webgl/README.md">案例资料</a>
     </td>
     <td width="50%">
       <a href="https://yogupro.github.io/open-motion/02-agent-orb/"><img src="./assets/02-agent-orb.webp" alt="Agent Orb 的点阵地球与状态选择栏" width="480"></a><br>
       <strong>Agent Orb</strong><br>
       用同一个 WebGL 点阵球表达六种 Agent 状态。<br>
-      <a href="https://yogupro.github.io/open-motion/02-agent-orb/">在线体验</a> · <a href="./02-agent-orb/">案例资料</a> · <a href="./assets/02-agent-orb.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/02-agent-orb/">在线体验</a> · <a href="./02-agent-orb/README.md">案例资料</a> · <a href="./assets/02-agent-orb.mp4">MP4 演示</a>
     </td>
   </tr>
   <tr valign="top">
     <td width="50%">
-      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/"><img src="./assets/03-webgl-loading.webp" alt="导出弹窗底部的暖色光带与进度文案" width="480"></a><br>
+      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html"><img src="./assets/01-codex-ultra-slider.webp" alt="Codex Ultra 能量滑轨，紫色极光填满轨道" width="480"></a><br>
+      <strong>Codex Ultra 能量滑轨</strong><br>
+      弹簧旋钮、极光填充与挡位粒子反馈。<br>
+      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html">在线体验</a> · <a href="./01-codex-ultra-slider/README.md">案例资料</a> · <a href="./assets/01-codex-ultra-slider.mp4">MP4 演示</a>
+    </td>
+    <td width="50%">
+      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/archive-export.html"><img src="./assets/03-webgl-loading.webp" alt="导出弹窗底部的暖色光带与进度文案" width="480"></a><br>
       <strong>导出光带</strong><br>
       暖色光带上移，文件摘要逐行恢复清晰。<br>
-      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">在线体验</a> · <a href="./03-webgl-loading/">案例资料</a> · <a href="./assets/03-webgl-loading.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/archive-export.html">归档演示</a> · <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">导出演示</a> · <a href="./03-webgl-loading/README.md">案例资料</a> · <a href="./assets/03-webgl-loading.mp4">MP4 演示</a>
+    </td>
+  </tr>
+  <tr valign="top">
+    <td width="50%">
+      <strong>进度线的暂停与回弹</strong><br>
+      暂停时进度线折起，继续时从折痕处展开并接着前进。<br>
+      <a href="https://yogupro.github.io/open-motion/08-kippe-progress-motion/index.html">在线体验</a> · <a href="./08-kippe-progress-motion/README.md">案例资料</a>
+    </td>
+    <td width="50%">
+      <strong>抠图粒子消散与高光描边</strong><br>
+      照片背景碎成方块散开，主体抬起并浮现贴纸白边。<br>
+      <a href="https://yogupro.github.io/open-motion/09-cutout-particles-webgl/index.html">在线体验</a> · <a href="./09-cutout-particles-webgl/README.md">案例资料</a>
+    </td>
+  </tr>
+  <tr valign="top">
+    <td width="50%">
+      <strong>流光棱镜微交互按钮</strong><br>
+      悬停点亮棱镜边框，按下时心形图标弹起。<br>
+      <a href="https://yogupro.github.io/open-motion/10-tactile-button/index.html">在线体验</a> · <a href="./10-tactile-button/README.md">案例资料</a>
     </td>
     <td width="50%">
       <a href="https://yogupro.github.io/open-motion/04-swipe-send/"><img src="./assets/04-swipe-send.webp" alt="上滑转账的深色确认界面与发光确认按钮" width="480"></a><br>
       <strong>上滑转账</strong><br>
       上滑越过确认阈值，松手后衔接光箭与折射回执。<br>
-      <a href="https://yogupro.github.io/open-motion/04-swipe-send/">在线体验</a> · <a href="./04-swipe-send/">案例资料</a> · <a href="./assets/04-swipe-send.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/04-swipe-send/">在线体验</a> · <a href="./04-swipe-send/README.md">案例资料</a> · <a href="./assets/04-swipe-send.mp4">MP4 演示</a>
+    </td>
+  </tr>
+  <tr valign="top">
+    <td width="50%">
+      <strong>文档索引工作流</strong><br>
+      启动工作流后，数据包沿连线依次经过接入、解析和索引写入。<br>
+      <a href="https://yogupro.github.io/open-motion/11-anuar-node-connections/index.html">在线体验</a> · <a href="./11-anuar-node-connections/README.md">案例资料</a>
+    </td>
+    <td width="50%">
+      <strong>语音助手 · 粒子声波</strong><br>
+      两个面板独立演示聆听、思考与粒子声波。<br>
+      <a href="https://yogupro.github.io/open-motion/12-voice-particles-webgl/index.html">在线体验</a> · <a href="./12-voice-particles-webgl/README.md">案例资料</a>
     </td>
   </tr>
 </table>
 
 ## 资料索引
 
-| 案例 | 界面源码 | 原理笔记 |
-| --- | --- | --- |
-| Codex Ultra 能量滑轨 | [单文件 HTML](./01-codex-ultra-slider/codex-ultra-slider.html) | [微交互原理速查手册](./01-codex-ultra-slider/Codex-Ultra-微交互原理速查手册.md) |
-| Agent Orb | [界面与着色器](./02-agent-orb/index.html) · [点阵数据](./02-agent-orb/particles.js) | [六种状态与过渡](./02-agent-orb/README.md) |
-| 导出光带 | [单文件 HTML](./03-webgl-loading/index.html) | [微交互原理速查手册](./03-webgl-loading/导出光带-微交互原理速查手册.md) |
-| 上滑转账 | [界面入口](./04-swipe-send/index.html) · [手势与动效](./04-swipe-send/motion.js) · [光效渲染](./04-swipe-send/renderer.js) | [微交互原理速查手册](./04-swipe-send/上滑转账-微交互原理速查手册.md) |
+| 案例 | 技术 | 界面源码 | 案例资料 |
+| --- | --- | --- | --- |
+| 液化边缘吸附 | WebGL 2D SDF | [界面入口](./05-liquid-dock/index.html) | [README](./05-liquid-dock/README.md) |
+| Before / After 拖拽对比 | SVG 与弹簧物理 | [界面入口](./06-before-after-physics/index.html) | [README](./06-before-after-physics/README.md) |
+| 患者流转漏斗 | WebGL 粒子 | [界面入口](./07-patient-funnel-webgl/index.html) | [README](./07-patient-funnel-webgl/README.md) |
+| Agent Orb | WebGL 点阵球 | [界面入口](./02-agent-orb/index.html) | [README](./02-agent-orb/README.md) |
+| Codex Ultra 能量滑轨 | 弹簧与 WebGL | [界面入口](./01-codex-ultra-slider/codex-ultra-slider.html) | [README](./01-codex-ultra-slider/README.md) · [原理速查手册](./01-codex-ultra-slider/Codex-Ultra-微交互原理速查手册.md) |
+| 导出光带 | WebGL 着色器 | [归档版本](./03-webgl-loading/archive-export.html) · [导出版本](./03-webgl-loading/index.html) | [README](./03-webgl-loading/README.md) · [原理速查手册](./03-webgl-loading/导出光带-微交互原理速查手册.md) |
+| 进度线的暂停与回弹 | SVG 与弹簧 | [界面入口](./08-kippe-progress-motion/index.html) | [README](./08-kippe-progress-motion/README.md) |
+| 抠图粒子消散与高光描边 | WebGL 2 粒子 | [界面入口](./09-cutout-particles-webgl/index.html) | [README](./09-cutout-particles-webgl/README.md) |
+| 流光棱镜微交互按钮 | CSS Houdini | [界面入口](./10-tactile-button/index.html) | [README](./10-tactile-button/README.md) |
+| 上滑转账 | 手势与 WebGL | [界面入口](./04-swipe-send/index.html) | [README](./04-swipe-send/README.md) · [原理速查手册](./04-swipe-send/上滑转账-微交互原理速查手册.md) |
+| 文档索引工作流 | Vue Flow 与 WebGL | [界面入口](./11-anuar-node-connections/index.html) | [README](./11-anuar-node-connections/README.md) |
+| 语音助手 · 粒子声波 | WebGL 粒子 | [界面入口](./12-voice-particles-webgl/index.html) | [README](./12-voice-particles-webgl/README.md) |
 
 ## 关于智慧力量
 

@@ -5,7 +5,7 @@
 <p align="center"><strong>开源 UI 微交互资料库</strong></p>
 <p align="center">从滑块、状态提示到加载与手势确认，每个案例都提供界面源码与动效拆解。</p>
 <p align="center">
-  <strong><a href="https://yogupro.github.io/open-motion/">在线站点</a></strong> · <a href="#案例画廊">案例画廊</a> · <a href="#资料索引">资料索引</a> · <a href="#关于智慧力量">关于智慧力量</a> · <a href="./LICENSE">Apache 2.0</a>
+  <strong><a href="https://yogupro.github.io/open-motion/">在线站点</a></strong> · <a href="#案例画廊">案例画廊</a> · <a href="#资料索引">资料索引</a> · <a href="#关于智慧力量">关于智慧力量</a> · <a href="./LICENSE">MIT</a>
 </p>
 
 > 案例素材来自 X（原 Twitter），原创设计归原作者。OpenMotion 提供案例复现与动效拆解，供学习交流。

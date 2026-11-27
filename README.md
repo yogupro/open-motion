@@ -8,7 +8,7 @@
   <strong><a href="https://yogupro.github.io/open-motion/">在线站点</a></strong> · <a href="#案例画廊">案例画廊</a> · <a href="#资料索引">资料索引</a> · <a href="#关于智慧力量">关于智慧力量</a> · <a href="./LICENSE">Apache 2.0</a>
 </p>
 
-> **素材来源**：案例参考素材来自 X（原 Twitter），原创设计归原作者。OpenMotion 提供案例复现与动效拆解，供学习交流。
+> 案例素材来自 X（原 Twitter），原创设计归原作者。OpenMotion 提供案例复现与动效拆解，供学习交流。
 
 ## 案例画廊
 

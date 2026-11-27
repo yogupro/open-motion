@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./assets/cover.webp" alt="OpenMotion" width="1120">
+  <img src="./assets/cover.webp" alt="OpenMotion · 智慧力量" width="1120">
 </h1>
 
 <p align="center"><strong>开源 UI 微交互资料库</strong></p>
@@ -52,7 +52,7 @@
 
 ## 关于有谷
 
-<img src="./assets/yogu-logo.png" alt="智慧力量公司标志" width="212" height="58">
+<img src="./assets/yogu-logo.svg" alt="智慧力量公司标志" width="168">
 
 **杭州智慧力量科技有限公司（有谷 Yogu）**开发面向个人和团队的 AI 产品，涵盖知识工作与学习、内容与媒体生产，以及企业智能应用。OpenMotion 由有谷维护，用于分享 UI 微交互案例、源码与原理笔记。
 

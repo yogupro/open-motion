@@ -12,8 +12,6 @@
 
 ## 案例画廊
 
-[打开交互画廊](https://yogupro.github.io/open-motion/) · [查看部分案例预览图](./assets/ux-motions-preview.webp)
-
 <table>
   <tr valign="top">
     <td width="50%">
@@ -40,7 +38,7 @@
       <a href="https://yogupro.github.io/open-motion/02-agent-orb/"><img src="./assets/02-agent-orb.webp" alt="Agent Orb 的点阵地球与状态选择栏" width="480"></a><br>
       <strong>Agent Orb</strong><br>
       用同一个 WebGL 点阵球表达六种 Agent 状态。<br>
-      <a href="https://yogupro.github.io/open-motion/02-agent-orb/">在线体验</a> · <a href="./02-agent-orb/README.md">案例资料</a> · <a href="./assets/02-agent-orb.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/02-agent-orb/">在线体验</a> · <a href="./02-agent-orb/README.md">案例资料</a>
     </td>
   </tr>
   <tr valign="top">
@@ -48,13 +46,13 @@
       <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html"><img src="./assets/01-codex-ultra-slider.webp" alt="Codex Ultra 能量滑轨，紫色极光填满轨道" width="480"></a><br>
       <strong>Codex Ultra 能量滑轨</strong><br>
       弹簧旋钮、极光填充与挡位粒子反馈。<br>
-      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html">在线体验</a> · <a href="./01-codex-ultra-slider/README.md">案例资料</a> · <a href="./assets/01-codex-ultra-slider.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/01-codex-ultra-slider/codex-ultra-slider.html">在线体验</a> · <a href="./01-codex-ultra-slider/README.md">案例资料</a>
     </td>
     <td width="50%">
       <a href="https://yogupro.github.io/open-motion/03-webgl-loading/"><img src="./assets/03-webgl-loading.webp" alt="导出弹窗底部的暖色光带与进度文案" width="480"></a><br>
       <strong>导出光带</strong><br>
       暖色光带上移，文件摘要逐行恢复清晰。<br>
-      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">在线体验</a> · <a href="./03-webgl-loading/README.md">案例资料</a> · <a href="./assets/03-webgl-loading.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/03-webgl-loading/">在线体验</a> · <a href="./03-webgl-loading/README.md">案例资料</a>
     </td>
   </tr>
   <tr valign="top">
@@ -82,7 +80,7 @@
       <a href="https://yogupro.github.io/open-motion/04-swipe-send/"><img src="./assets/04-swipe-send.webp" alt="上滑转账的深色确认界面与发光确认按钮" width="480"></a><br>
       <strong>上滑转账</strong><br>
       上滑越过确认阈值，松手后衔接光箭与折射回执。<br>
-      <a href="https://yogupro.github.io/open-motion/04-swipe-send/">在线体验</a> · <a href="./04-swipe-send/README.md">案例资料</a> · <a href="./assets/04-swipe-send.mp4">MP4 演示</a>
+      <a href="https://yogupro.github.io/open-motion/04-swipe-send/">在线体验</a> · <a href="./04-swipe-send/README.md">案例资料</a>
     </td>
   </tr>
   <tr valign="top">
